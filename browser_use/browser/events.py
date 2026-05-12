@@ -40,12 +40,19 @@ class TabClosedEvent(BrowserEvent):
     url: str = ""
 
 
+@dataclass
+class DomUpdatedEvent(BrowserEvent):
+    url: str = ""
+    title: str = ""
+
+
 __all__ = [
     "BrowserConnectedEvent",
     "BrowserCrashedEvent",
     "BrowserDisconnectedEvent",
     "BrowserEvent",
     "BrowserSecurityError",
+    "DomUpdatedEvent",
     "TabClosedEvent",
     "TabCreatedEvent",
 ]

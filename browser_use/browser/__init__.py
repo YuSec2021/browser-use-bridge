@@ -4,6 +4,7 @@ from browser_use.browser.events import (
     BrowserDisconnectedEvent,
     BrowserEvent,
     BrowserSecurityError,
+    DomUpdatedEvent,
     TabClosedEvent,
     TabCreatedEvent,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "BrowserSession",
     "BrowserStateSummary",
     "BrowserTab",
+    "DomUpdatedEvent",
     "EventBus",
     "SessionManager",
     "TabClosedEvent",

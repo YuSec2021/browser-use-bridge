@@ -7,3 +7,5 @@
 - Config loading correctly reads a JSON config file (headless=true in file, viewport 1200x800). The environment variable `BROWSER_USE_BROWSER_HEADLESS=false` overrides the file value to `False`, confirming three-tier precedence (env > JSON file > defaults). Width and height are read from the JSON file as expected.
 
 ## v0.2.0 — Sprint 2 [MINOR bump]
+
+## v0.3.0 — Sprint 3 [MINOR bump]
