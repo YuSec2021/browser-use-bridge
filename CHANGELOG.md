@@ -20,3 +20,5 @@
 ## v0.5.0 — Sprint 5 [MINOR bump]
 
 ## v0.6.0 — Sprint 6 [MINOR bump]
+
+## v0.7.0 — Sprint 7 [MINOR bump]
