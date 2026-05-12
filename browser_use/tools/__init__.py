@@ -26,17 +26,23 @@ from browser_use.tools.registry import ActionRegistry, params_model_from_callabl
 
 
 class Tools:
+    """Registry and executor for browser-use automation actions."""
+
     def __init__(self) -> None:
+        """Create a tools registry populated with the built-in browser actions."""
         self.registry = ActionRegistry()
         self._register_builtin_actions()
 
     def list_actions(self) -> list[dict[str, Any]]:
+        """Return metadata for every registered action."""
         return [action.to_metadata() for action in self.registry.list()]
 
     def create_action_model(self) -> type[BaseModel]:
+        """Build a Pydantic model that validates exactly one registered action."""
         return self.registry.create_action_model()
 
     def action(self, description: str | None = None, name: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Register a custom action function and return it unchanged."""
         def decorator(function: Callable[..., Any]) -> Callable[..., Any]:
             action_name = name or function.__name__
             action_description = description or inspect.getdoc(function) or action_name.replace("_", " ")
@@ -56,6 +62,7 @@ class Tools:
         browser_session: Any | None = None,
         **kwargs: Any,
     ) -> Any:
+        """Validate and execute one action against an optional browser session."""
         action_payload = self._normalize_action(action)
         if len(action_payload) != 1:
             raise ValueError("Exactly one action must be provided")

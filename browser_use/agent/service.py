@@ -14,6 +14,8 @@ from browser_use.llm.base import BaseChatModel
 
 
 class Agent(BaseModel):
+    """Browser automation agent that perceives page state, asks an LLM for actions, and executes them."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     task: str
@@ -25,6 +27,7 @@ class Agent(BaseModel):
     loop_detector: ActionLoopDetector | None = None
 
     async def run(self) -> AgentHistoryList:
+        """Run the task until completion or until the maximum step count is reached."""
         history_list = AgentHistoryList()
         manager = self.message_manager or MessageManager(task=self.task)
         loop_detector = self.loop_detector or ActionLoopDetector()

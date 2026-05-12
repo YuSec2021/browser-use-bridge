@@ -143,12 +143,15 @@ class SessionManager:
 
 
 class BrowserSession:
+    """Manage a Playwright-controlled Chromium session and its active tabs."""
+
     def __init__(
         self,
         profile: BrowserProfile | None = None,
         cdp_url: str | None = None,
         event_bus: EventBus | None = None,
     ) -> None:
+        """Create a browser session profile, optionally targeting an existing CDP URL."""
         self.profile = profile or BrowserProfile()
         self.cdp_url = cdp_url
         self.event_bus = event_bus or EventBus()
@@ -167,15 +170,19 @@ class BrowserSession:
 
     @property
     def tabs(self) -> list[BrowserTab]:
+        """Return the tabs currently known to this session."""
         return self.session_manager.tabs
 
     def on_event(self, callback: EventCallback) -> None:
+        """Subscribe to browser lifecycle events emitted by this session."""
         self.event_bus.subscribe(callback)
 
     async def wait_for_event(self, event_name: str, timeout: float | None = None) -> BrowserEvent:
+        """Wait for the next event with the given class name."""
         return await self.event_bus.wait_for(event_name, timeout=timeout)
 
     async def start(self) -> "BrowserSession":
+        """Start Chromium or connect to the configured CDP endpoint."""
         if self._browser is not None and not self.is_closed:
             return self
 
@@ -203,6 +210,7 @@ class BrowserSession:
         return self
 
     async def navigate(self, url: str) -> None:
+        """Navigate the active tab to a URL."""
         self._ensure_started()
         self._enforce_allowed_domain(url)
         page = self.session_manager.get_active_tab().page
@@ -210,6 +218,7 @@ class BrowserSession:
         await self.session_manager.refresh_tab(self.session_manager.get_active_tab())
 
     async def open_tab(self, url: str | None = None) -> BrowserTab:
+        """Open a new tab, optionally navigating it to a URL."""
         self._ensure_started()
         if url is not None:
             self._enforce_allowed_domain(url)
@@ -228,6 +237,7 @@ class BrowserSession:
         return tab
 
     async def switch_tab(self, tab_id: str) -> BrowserTab:
+        """Make the requested tab active and bring it to the foreground."""
         tab = self.session_manager.set_active(tab_id)
         with contextlib.suppress(Exception):
             await tab.page.bring_to_front()
@@ -235,6 +245,7 @@ class BrowserSession:
         return tab
 
     async def close_tab(self, tab_id: str) -> None:
+        """Close a tab by id and emit the associated lifecycle event."""
         tab = self.session_manager.get_tab(tab_id)
         with contextlib.suppress(Exception):
             await tab.page.close()
@@ -243,18 +254,21 @@ class BrowserSession:
             self.event_bus.emit(TabClosedEvent(session=self, tab_id=removed.id, url=removed.url))
 
     async def get_title(self) -> str:
+        """Return the active tab title."""
         self._ensure_started()
         tab = self.session_manager.get_active_tab()
         tab.title = await tab.page.title()
         return tab.title
 
     async def get_current_url(self) -> str:
+        """Return the active tab URL."""
         self._ensure_started()
         tab = self.session_manager.get_active_tab()
         tab.url = getattr(tab.page, "url", tab.url)
         return tab.url
 
     async def evaluate(self, expression: str, arg: Any = None) -> Any:
+        """Evaluate JavaScript in the active tab."""
         self._ensure_started()
         page = self.session_manager.get_active_tab().page
         if arg is None:
@@ -262,6 +276,7 @@ class BrowserSession:
         return await page.evaluate(expression, arg)
 
     async def close(self) -> None:
+        """Close the browser connection and any browser process owned by this session."""
         if self.is_closed:
             return
 
