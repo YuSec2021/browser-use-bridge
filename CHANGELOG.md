@@ -18,3 +18,5 @@
 - The agent ran one step (done action). After save-to-file and load-from-file, the restored `AgentHistoryList` has 1 history entry. The restored entry has `state.title = "Persisted Run"`, `model_output.memory = "loaded"`, and `model_output.actions[0]["done"]["text"] = "finished"`. No data was lost in the round-trip.
 
 ## v0.5.0 — Sprint 5 [MINOR bump]
+
+## v0.6.0 — Sprint 6 [MINOR bump]
