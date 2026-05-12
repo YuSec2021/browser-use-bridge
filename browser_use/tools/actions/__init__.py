@@ -112,6 +112,7 @@ def _active_page(browser_session: Any) -> Any:
 async def _settle_page(page: Any) -> None:
     with contextlib.suppress(Exception):
         await page.wait_for_load_state("load", timeout=3000)
+    await asyncio.sleep(0)
 
 
 def _download_future(page: Any) -> asyncio.Future[Any] | None:
@@ -141,6 +142,34 @@ async def _save_download(page: Any, download: Any) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     with contextlib.suppress(Exception):
         await download.save_as(str(target))
+    if target.exists() and target.stat().st_size == 0 and getattr(download, "url", "").startswith("data:"):
+        data = await page.evaluate(_DECODE_DATA_URL_SCRIPT, download.url)
+        target.write_bytes(bytes(data))
+
+
+_DECODE_DATA_URL_SCRIPT = r"""
+(url) => {
+  const comma = url.indexOf(',');
+  if (!url.startsWith('data:') || comma === -1) throw new Error('Invalid data URL');
+  const metadata = url.slice(5, comma);
+  const body = url.slice(comma + 1);
+  if (/(^|;)base64($|;)/i.test(metadata)) {
+    const binary = atob(body.replace(/\s/g, ''));
+    return Array.from(binary, (character) => character.charCodeAt(0));
+  }
+  const bytes = [];
+  for (let index = 0; index < body.length; index += 1) {
+    const character = body[index];
+    if (character === '%' && index + 2 < body.length) {
+      bytes.push(parseInt(body.slice(index + 1, index + 3), 16));
+      index += 2;
+    } else {
+      bytes.push(character.charCodeAt(0) & 0xff);
+    }
+  }
+  return bytes;
+}
+"""
 
 
 _CLICK_SCRIPT = r"""
