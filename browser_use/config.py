@@ -21,6 +21,7 @@ class BrowserProfile(BaseModel):
     headless: bool = True
     viewport: BrowserViewport = Field(default_factory=BrowserViewport)
     user_data_dir: str | None = None
+    downloads_path: str | None = None
     proxy: str | dict[str, Any] | None = None
     allowed_domains: list[str] = Field(default_factory=list)
     cdp_port: int | None = None

@@ -332,10 +332,17 @@ class BrowserSession:
         if contexts:
             context = contexts[0]
         else:
-            context = await self._browser.new_context(viewport=self.profile.viewport.model_dump())
+            context_kwargs: dict[str, Any] = {
+                "viewport": self.profile.viewport.model_dump(),
+                "accept_downloads": True,
+            }
+            if self.profile.downloads_path:
+                context_kwargs["downloads_path"] = self.profile.downloads_path
+            context = await self._browser.new_context(**context_kwargs)
         return context
 
     async def _register_page(self, page: Any) -> tuple[BrowserTab, bool]:
+        setattr(page, "_browser_use_session", self)
         await self._apply_viewport(page)
         page.on("close", lambda: asyncio.create_task(self._handle_page_closed(page)))
         page.on("framenavigated", lambda _frame: self._refresh_page_url(page))
@@ -357,9 +364,9 @@ class BrowserSession:
         self._emit_disconnected()
 
     async def _install_watchdogs(self) -> None:
-        from browser_use.browser.watchdogs import CrashWatchdog, PopupWatchdog
+        from browser_use.browser.watchdogs import CrashWatchdog, DownloadWatchdog, PopupWatchdog
 
-        self._watchdogs = [PopupWatchdog(self), CrashWatchdog(self)]
+        self._watchdogs = [PopupWatchdog(self), DownloadWatchdog(self), CrashWatchdog(self)]
         for watchdog in self._watchdogs:
             await watchdog.start()
 
