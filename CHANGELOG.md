@@ -5,3 +5,5 @@
 - `StructuredOutputChatModel` correctly wraps a `BaseChatModel`, and `ainvoke` returns a `Pydantic v2` model instance populated from the JSON string. Parse failures would raise `ValidationError` via `schema.model_validate_json` (present in `_parse_structured_response`), but the contract's happy-path test passes cleanly.
 - `BrowserStateSummary`, `AgentOutput`, and `AgentHistory` all accept input data and serialize to `dict` via `model_dump()` without validation errors. The `AgentHistory` model correctly holds nested `AgentOutput` and `BrowserStateSummary` instances.
 - Config loading correctly reads a JSON config file (headless=true in file, viewport 1200x800). The environment variable `BROWSER_USE_BROWSER_HEADLESS=false` overrides the file value to `False`, confirming three-tier precedence (env > JSON file > defaults). Width and height are read from the JSON file as expected.
+
+## v0.2.0 — Sprint 2 [MINOR bump]
