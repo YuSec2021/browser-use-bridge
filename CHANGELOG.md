@@ -9,3 +9,10 @@
 ## v0.2.0 — Sprint 2 [MINOR bump]
 
 ## v0.3.0 — Sprint 3 [MINOR bump]
+
+## v0.4.0 — Sprint 4 [MINOR bump]
+- All 6 stdout lines match the expected contract exactly. `Agent`, `MessageManager`, `ActionLoopDetector`, `AgentHistory`, `AgentHistoryList`, and `AgentOutput` are all importable from `browser_use.agent`. Save-to-file and load-from-file round-trip preserved history length (1), next_goal ("finish"), and URL ("https://example.test").
+- FakeLLM was called twice (navigate on step 1, done on step 2). The Agent correctly routed the "navigate" action through the injected FakeTools, which called `browser_session.navigate`. The browser title was confirmed as "Sprint 4 Agent". `history.histories[-1].model_output.actions[0]["done"]["success"]` returned `True`. The loop terminated cleanly at step 2.
+- With max_tokens=220 and keep_recent_steps=2 across 6 history entries:
+- FakeTools was called three times: click, click, done. The ActionLoopDetector with `max_repetitions=2` detected the repeated "click" action after the second call and injected a loop-detection nudge into the third LLM prompt. The LLM received the nudge and returned a "done" action. The final action's `done.success` is `True`.
+- The agent ran one step (done action). After save-to-file and load-from-file, the restored `AgentHistoryList` has 1 history entry. The restored entry has `state.title = "Persisted Run"`, `model_output.memory = "loaded"`, and `model_output.actions[0]["done"]["text"] = "finished"`. No data was lost in the round-trip.
