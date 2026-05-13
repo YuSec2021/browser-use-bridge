@@ -30,3 +30,11 @@
 - Navigate call to file:// URL succeeded with `result.content` array containing JSON. Extract_content call returned `result.content` with inner JSON containing all expected keywords from the contract page (`Sprint 8 MCP`, `Contract Page`, `Continue`). Both responses are valid JSON-RPC with no errors.
 - `resources/list` returned `browser-use://state/current` in the URIs array. `resources/read` for that URI returned a JSON object containing the page URL, title (`Sprint 8 Resource`), content, and interactive elements including the `aria-label: Search` input field.
 - Output is valid JSON with `mcpServers` object. Server entry is named `browser-use`. `args` array contains both `mcp` and `--stdio` as required.
+
+## v0.9.0 — Sprint 9 [MINOR bump]
+- All four adapter classes are exported from `browser_use.llm`, importable as both top-level names and module-level names, and each instantiates without making any HTTP requests.
+- `endpoint='international'` routes to `https://api.moonshot.ai/v1`, `endpoint='cn'` routes to `https://api.moonshot.cn/v1`. Request parameters (temperature, model, messages) are correctly forwarded. API keys are preserved per-client.
+- `region='cn'` routes to `https://dashscope.aliyuncs.com/compatible-mode/v1`, `region='international'` routes to `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`. When `thinking=True` and `thinking_budget=1024`, `extra_body` contains `enable_thinking: true` and `thinking_budget: 1024`.
+- Base URL correctly set to `https://open.bigmodel.cn/api/paas/v4`. Request parameters `temperature=0.1` and `max_tokens=32` are correctly forwarded to the completions call.
+- Both `MiniMax-M1` and `MiniMax-M2` models are accepted. When `reasoning=True` is set, `extra_body` contains `reasoning_split: true`. Endpoint correctly routes to `https://api.minimax.io/v1`.
+- All four providers support `.with_structured_output(Probe)` and correctly parse Pydantic model responses from raw JSON content. Each provider returned the correct model name in the `answer` field and the integer `9` in the `score` field.
