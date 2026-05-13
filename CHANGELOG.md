@@ -22,3 +22,11 @@
 ## v0.6.0 — Sprint 6 [MINOR bump]
 
 ## v0.7.0 — Sprint 7 [MINOR bump]
+
+## v0.8.0 — Sprint 8 [MINOR bump]
+- `mcp` subcommand present in top-level help with exit code 0. All required flags (`--stdio`, `--json`) present in `mcp --help`. The `--claude-config` flag is also present as an extra, bonus feature.
+- Response contains `jsonrpc: "2.0"`, `id: 1`, and a `result` object. `result.serverInfo.name` = `browser-use`. `result.capabilities.tools` confirms MCP tools support. Both tools and resources capabilities are declared.
+- 7 tools listed including all required `navigate`, `click`, `extract_content`, and `done`. Every tool has a human-readable `description` and a valid `inputSchema` object. Tools/list returned as response 2 after initialize (notification produces no response).
+- Navigate call to file:// URL succeeded with `result.content` array containing JSON. Extract_content call returned `result.content` with inner JSON containing all expected keywords from the contract page (`Sprint 8 MCP`, `Contract Page`, `Continue`). Both responses are valid JSON-RPC with no errors.
+- `resources/list` returned `browser-use://state/current` in the URIs array. `resources/read` for that URI returned a JSON object containing the page URL, title (`Sprint 8 Resource`), content, and interactive elements including the `aria-label: Search` input field.
+- Output is valid JSON with `mcpServers` object. Server entry is named `browser-use`. `args` array contains both `mcp` and `--stdio` as required.
