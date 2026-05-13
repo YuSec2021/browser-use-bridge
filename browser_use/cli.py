@@ -18,6 +18,7 @@ if __package__ in {None, ""}:
 
 from browser_use.browser import BrowserSession
 from browser_use.dom import DomService
+from browser_use.mcp import BrowserUseServer, claude_desktop_config
 from browser_use.tools import Tools
 from browser_use.tui import BrowserUseTUI, DashboardState, THEME_SUMMARY, render_dashboard_text
 
@@ -156,6 +157,27 @@ def theme() -> None:
     """Print the Terminal Precision palette."""
 
     click.echo(THEME_SUMMARY)
+
+
+@main.command("mcp")
+@click.option("--stdio", is_flag=True, help="Start the MCP server using line-delimited stdio JSON-RPC.")
+@click.option("--claude-config", is_flag=True, help="Print a Claude Desktop MCP configuration snippet.")
+@click.option("--json", "json_output", is_flag=True, help="Emit configuration snippets as JSON.")
+def mcp(stdio: bool, claude_config: bool, json_output: bool) -> None:
+    """Start an MCP server for browser automation tools."""
+
+    if claude_config:
+        config = claude_desktop_config()
+        if json_output:
+            _echo_json(config)
+        else:
+            click.echo(json.dumps(config, indent=2))
+        return
+
+    if not stdio:
+        raise click.UsageError("Use --stdio to start the MCP server over standard input/output.")
+
+    asyncio.run(BrowserUseServer().run_stdio())
 
 
 async def _inspect_url(url: str, max_elements: int) -> dict[str, Any]:
