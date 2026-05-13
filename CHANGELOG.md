@@ -38,3 +38,11 @@
 - Base URL correctly set to `https://open.bigmodel.cn/api/paas/v4`. Request parameters `temperature=0.1` and `max_tokens=32` are correctly forwarded to the completions call.
 - Both `MiniMax-M1` and `MiniMax-M2` models are accepted. When `reasoning=True` is set, `extra_body` contains `reasoning_split: true`. Endpoint correctly routes to `https://api.minimax.io/v1`.
 - All four providers support `.with_structured_output(Probe)` and correctly parse Pydantic model responses from raw JSON content. Each provider returned the correct model name in the `answer` field and the integer `9` in the `score` field.
+
+## v0.10.0 — Sprint 10 [MINOR bump]
+- `python -m browser_use list-tools --json` returns valid JSON containing all three Sprint 10 actions. `search_google` schema has required `query` field. `open_tab` schema has required `url` field. `switch_tab` schema has required `tab_id` field.
+- `open_tab` action created two distinct tabs with different tab IDs. `switch_tab` action correctly switched to each tab and `session.get_title()` returned the expected page title. `TabCreatedEvent` was emitted for each new tab. No errors.
+- `Tools().execute_action({'search_google': {'query': 'browser use sprint 10 polish'}})` produced the exact expected URL `https://www.google.com/search?q=browser+use+sprint+10+polish`. Return value was `{'ok': True, 'url': expected, 'query': 'browser use sprint 10 polish'}`.
+- `--log-json --log-file` produces JSON lines on disk. `--json` flag produces structured JSON to stdout. `BROWSER_USE_TRACE_ID` env var sets trace ID across both output streams. All trace IDs are consistent at `sprint10-trace-001`.
+- `ObservabilityHub` dispatches events to both `langsmith` and `langfuse` hooks. Payload includes `trace_id`, `name`, and `payload` fields exactly as specified. No network access or third-party SDK imports required.
+- `BrowserSession(profile=BrowserProfile(allowed_domains=['allowed.example'], proxy={'server': 'http://127.0.0.1:7777'}))` launched a Chromium process with `--proxy-server=http://127.0.0.1:7777` flag. Navigation to `https://blocked.example/...` raised `BrowserSecurityError` with `blocked.example` in the message. Both `session.navigate` and `session.open_tab` were blocked.
