@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from typing import Any
+from urllib.parse import urlencode
 
 from pydantic import BaseModel, ConfigDict
 
@@ -40,6 +41,24 @@ class ExtractContentParams(BaseModel):
 
 class GoBackParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class SearchGoogleParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str
+
+
+class OpenTabParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: str
+
+
+class SwitchTabParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tab_id: str
 
 
 class DoneParams(BaseModel):
@@ -98,6 +117,22 @@ async def go_back(browser_session: Any) -> dict[str, Any]:
     await page.go_back(wait_until="load")
     await browser_session.session_manager.refresh_tab(browser_session.session_manager.get_active_tab())
     return {"ok": True, "url": await browser_session.get_current_url()}
+
+
+async def search_google(browser_session: Any, query: str) -> dict[str, Any]:
+    url = f"https://www.google.com/search?{urlencode({'q': query})}"
+    await browser_session.navigate(url)
+    return {"ok": True, "url": await browser_session.get_current_url(), "query": query}
+
+
+async def open_tab(browser_session: Any, url: str) -> dict[str, Any]:
+    tab = await browser_session.open_tab(url)
+    return {"ok": True, "tab_id": tab.id, "url": tab.url, "title": tab.title}
+
+
+async def switch_tab(browser_session: Any, tab_id: str) -> dict[str, Any]:
+    tab = await browser_session.switch_tab(tab_id)
+    return {"ok": True, "tab_id": tab.id, "url": tab.url, "title": tab.title}
 
 
 async def done(success: bool = True, text: str = "") -> dict[str, Any]:
@@ -278,12 +313,18 @@ __all__ = [
     "GoBackParams",
     "InputTextParams",
     "NavigateParams",
+    "OpenTabParams",
     "ScrollParams",
+    "SearchGoogleParams",
+    "SwitchTabParams",
     "click",
     "done",
     "extract_content",
     "go_back",
     "input_text",
     "navigate",
+    "open_tab",
     "scroll",
+    "search_google",
+    "switch_tab",
 ]

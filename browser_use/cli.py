@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from dataclasses import asdict
 from html.parser import HTMLParser
@@ -19,6 +20,7 @@ if __package__ in {None, ""}:
 from browser_use.browser import BrowserSession
 from browser_use.dom import DomService
 from browser_use.mcp import BrowserUseServer, claude_desktop_config
+from browser_use.observability import ObservabilityEvent, ObservabilityHub
 from browser_use.tools import Tools
 from browser_use.tui import BrowserUseTUI, DashboardState, THEME_SUMMARY, render_dashboard_text
 
@@ -40,13 +42,24 @@ def main() -> None:
 @click.option("--mock-llm", is_flag=True, help="Use deterministic local planning without a paid LLM provider.")
 @click.option("--max-steps", default=20, show_default=True, type=click.IntRange(min=1), help="Maximum automation steps.")
 @click.option("--json", "json_output", is_flag=True, help="Emit a structured JSON result.")
-def run(task: str, url: str | None, mock_llm: bool, max_steps: int, json_output: bool) -> None:
+@click.option("--log-json", is_flag=True, help="Write structured JSON execution logs.")
+@click.option("--log-file", type=click.Path(dir_okay=False), help="File path for structured execution logs.")
+def run(
+    task: str,
+    url: str | None,
+    mock_llm: bool,
+    max_steps: int,
+    json_output: bool,
+    log_json: bool,
+    log_file: str | None,
+) -> None:
     """Run a browser automation task."""
 
     if not mock_llm:
         raise click.UsageError("Use --mock-llm for deterministic local execution in this build.")
 
-    result = asyncio.run(_run_mock_task(task=task, url=url, max_steps=max_steps))
+    hub = ObservabilityHub(trace_id=os.getenv("BROWSER_USE_TRACE_ID"), log_file=log_file, log_json=log_json)
+    result = asyncio.run(_run_mock_task(task=task, url=url, max_steps=max_steps, observability=hub))
     if json_output:
         _echo_json(result)
         return
@@ -197,7 +210,14 @@ async def _inspect_url(url: str, max_elements: int) -> dict[str, Any]:
         await session.close()
 
 
-async def _run_mock_task(task: str, url: str | None, max_steps: int) -> dict[str, Any]:
+async def _run_mock_task(
+    task: str,
+    url: str | None,
+    max_steps: int,
+    observability: ObservabilityHub | None = None,
+) -> dict[str, Any]:
+    hub = observability or ObservabilityHub()
+    hub.emit(ObservabilityEvent(name="run_started", payload={"task": task, "url": url, "max_steps": max_steps}))
     summary = await _inspect_url(url, max_elements=50) if url else {"url": "", "title": "", "elements": []}
     labels = [str(element.get("text", "")) for element in summary["elements"] if element.get("text")]
     completion_label = _best_completion_label(labels)
@@ -206,14 +226,17 @@ async def _run_mock_task(task: str, url: str | None, max_steps: int) -> dict[str
         if completion_label
         else "Completed deterministic mock run."
     )
-    return {
+    result = {
         "task": task,
         "status": "done",
         "steps": min(max_steps, 1),
         "final_result": final_result,
         "url": summary["url"],
         "title": summary["title"],
+        "trace_id": hub.trace_id,
     }
+    hub.emit(ObservabilityEvent(name="run_finished", payload=result))
+    return result
 
 
 def _best_completion_label(labels: list[str]) -> str:

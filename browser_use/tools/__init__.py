@@ -13,14 +13,20 @@ from browser_use.tools.actions import (
     GoBackParams,
     InputTextParams,
     NavigateParams,
+    OpenTabParams,
     ScrollParams,
+    SearchGoogleParams,
+    SwitchTabParams,
     click,
     done,
     extract_content,
     go_back,
     input_text,
     navigate,
+    open_tab,
     scroll,
+    search_google,
+    switch_tab,
 )
 from browser_use.tools.registry import ActionRegistry, params_model_from_callable
 
@@ -122,6 +128,27 @@ class Tools:
             "Go back to the previous page in the active tab history.",
             go_back,
             GoBackParams,
+            requires_browser=True,
+        )
+        self.registry.register(
+            "search_google",
+            "Navigate the active browser tab to a Google Search results page.",
+            search_google,
+            SearchGoogleParams,
+            requires_browser=True,
+        )
+        self.registry.register(
+            "open_tab",
+            "Open a new browser tab and navigate it to a URL.",
+            open_tab,
+            OpenTabParams,
+            requires_browser=True,
+        )
+        self.registry.register(
+            "switch_tab",
+            "Switch the active browser tab by tab id.",
+            switch_tab,
+            SwitchTabParams,
             requires_browser=True,
         )
         self.registry.register(
