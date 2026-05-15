@@ -56,3 +56,11 @@
 - RetryExhaustedError.summary is a structured dict with full attempt history including error_type, error message, category, and delay per attempt. Abort strategy selected from RecoveryStrategy enum.
 
 ## v0.12.0 — Sprint 13 [MINOR bump]
+
+## v0.13.0 — Sprint 14 [MINOR bump]
+- Public API is clean, fully async, and models serialize correctly. All 4 data models (BoundingBox, AnnotatedScreenshot, VisionAnalysis, VisionModel) are correctly exposed from `browser_use` package.
+- Capture modes correctly delegate to Playwright page.screenshot with the proper clip/full_page options and JPEG quality settings.
+- Annotation draws colored rectangles and index labels using PIL/Pillow. The hardcoded palette (pink, blue, green, amber, purple, teal) provides color differentiation for multiple boxes.
+- The VisionService correctly builds multi-part messages with text + image_url, parses the model response into typed VisionAnalysis, and correlates results back to annotated screenshots.
+- The refine loop correctly implements the threshold-gated retry pattern. It compares confidences, replaces the best result, and stops when threshold is met or max_refinements exhausted.
+- MessageManager.build_messages correctly merges screenshots with browser state, placing DOM text context before the image data. The `data:image/jpeg;base64,` content-type marker is correctly emitted.
