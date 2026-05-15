@@ -54,6 +54,22 @@ PROVIDER_DEFAULTS = {
 
 def _build_llm(provider: str, model: str | None, api_key: str | None) -> Any:
     """Create an LLM adapter from provider name and optional overrides."""
+    from browser_use.llm.custom import get_custom_provider_config
+
+    custom_config = get_custom_provider_config(provider)
+    if custom_config is not None:
+        from browser_use.llm import ChatCustom
+
+        return ChatCustom(
+            base_url=custom_config.base_url,
+            api_key=api_key if api_key is not None else custom_config.api_key,
+            model=model or custom_config.model_name,
+            extra_headers=custom_config.extra_headers,
+            config=custom_config,
+            provider_name=provider,
+            capabilities=custom_config.capabilities,
+        )
+
     model = model or PROVIDER_DEFAULTS.get(provider, "gpt-4o")
 
     if api_key is None:
@@ -103,7 +119,7 @@ def _build_llm(provider: str, model: str | None, api_key: str | None) -> Any:
 
         return ChatOllama(model=model)
 
-    raise click.UsageError(f"Unknown provider: {provider!r}")
+    raise click.UsageError(f"Unknown provider: {provider!r}. Use list-providers to see configured custom providers.")
 
 
 @main.command("run")
@@ -112,9 +128,9 @@ def _build_llm(provider: str, model: str | None, api_key: str | None) -> Any:
 @click.option("--mock-llm", is_flag=True, help="Use deterministic local planning without a paid LLM provider.")
 @click.option(
     "--provider",
-    type=click.Choice(["openai", "anthropic", "google", "kimi", "qwen", "glm", "minimax", "ollama"]),
+    type=str,
     default=None,
-    help="LLM provider. Required for real LLM execution (not --mock-llm).",
+    help="LLM provider or configured custom provider name. Required for real LLM execution (not --mock-llm).",
 )
 @click.option("--model", default=None, help="Model name. Provider default is used if omitted.")
 @click.option("--api-key", default=None, help="API key. Falls back to environment variables.")
@@ -144,7 +160,7 @@ def run(
         if provider is None and model is not None:
             provider = "openai"
         if provider is None:
-            raise click.UsageError("Specify --provider (openai, anthropic, google, kimi, qwen, glm, minimax, ollama) for real LLM execution.")
+            raise click.UsageError("Specify --provider for real LLM execution. Use list-providers to see supported names.")
         llm = _build_llm(provider, model, api_key)
         result = asyncio.run(_run_agent_task(task=task, url=url, llm=llm, max_steps=max_steps, observability=hub))
 
@@ -501,7 +517,7 @@ async def _run_agent_task(
             "task": task,
             "status": "done",
             "steps": len(history_list.histories),
-            "final_result": last.model_output.next_goal if last else "",
+            "final_result": _final_result_from_history(last),
             "url": last.state.url if last else "",
             "title": last.state.title if last else "",
             "trace_id": hub.trace_id,
@@ -549,6 +565,22 @@ def _best_completion_label(labels: list[str]) -> str:
     return labels[0] if labels else ""
 
 
+def _final_result_from_history(history: Any) -> str:
+    if history is None or history.model_output is None:
+        return ""
+    for action in history.model_output.actions:
+        if not isinstance(action, dict) or "done" not in action:
+            continue
+        done_payload = action["done"]
+        if isinstance(done_payload, dict):
+            text = done_payload.get("text")
+            if text:
+                return str(text)
+        if isinstance(done_payload, str):
+            return done_payload
+    return history.model_output.next_goal
+
+
 def _check_cdp_session(cdp_url: str) -> dict[str, Any]:
     version_url = f"{cdp_url.rstrip('/')}/json/version"
     try:
@@ -571,6 +603,12 @@ def _check_cdp_session(cdp_url: str) -> dict[str, Any]:
 
 
 def _provider_metadata() -> list[dict[str, Any]]:
+    from browser_use.llm.custom import (
+        ProviderCapabilities,
+        detect_provider_from_base_url,
+        load_custom_provider_configs,
+    )
+
     providers: list[dict[str, Any]] = []
     env_map = {
         "openai": "OPENAI_API_KEY",
@@ -589,10 +627,37 @@ def _provider_metadata() -> list[dict[str, Any]]:
         providers.append(
             {
                 "name": name,
+                "provider_type": name,
                 "available": bool(os.getenv(env_var or "")),
                 "requires_api_key": True,
                 "default_model": default_model,
                 "models": [default_model],
+                "capabilities": _capabilities_payload(_builtin_provider_capabilities(name)),
+            }
+        )
+    providers.append(
+        {
+            "name": "custom",
+            "provider_type": "custom",
+            "available": True,
+            "requires_api_key": True,
+            "default_model": "configured-model",
+            "models": [],
+            "capabilities": _capabilities_payload(ProviderCapabilities()),
+        }
+    )
+    for custom_provider in load_custom_provider_configs():
+        capabilities = custom_provider.capabilities
+        providers.append(
+            {
+                "name": custom_provider.name or detect_provider_from_base_url(custom_provider.base_url),
+                "provider_type": detect_provider_from_base_url(custom_provider.base_url),
+                "available": True,
+                "requires_api_key": True,
+                "default_model": custom_provider.model_name,
+                "models": [custom_provider.model_name],
+                "base_url": custom_provider.base_url,
+                "capabilities": _capabilities_payload(capabilities),
             }
         )
     return providers
@@ -618,13 +683,35 @@ def _ollama_provider_metadata(default_model: str) -> dict[str, Any]:
     models = status.available_models if status.connected else []
     return {
         "name": "ollama",
+        "provider_type": "ollama",
         "available": status.connected,
         "requires_api_key": False,
         "default_model": models[0] if models else default_model,
         "models": models,
         "base_url": status.base_url,
         "error": status.error,
+        "capabilities": _capabilities_payload(_builtin_provider_capabilities("ollama")),
     }
+
+
+def _builtin_provider_capabilities(provider: str) -> Any:
+    from browser_use.llm.custom import ProviderCapabilities
+
+    if provider in {"openai", "qwen", "glm", "kimi", "minimax"}:
+        return ProviderCapabilities(
+            structured_output="json_schema",
+            vision=provider in {"openai", "qwen"},
+            thinking=provider in {"qwen", "minimax"},
+        )
+    if provider == "ollama":
+        return ProviderCapabilities(structured_output="prompt_injection", vision=True, thinking=False)
+    return ProviderCapabilities(structured_output="json_object", vision=False, thinking=False)
+
+
+def _capabilities_payload(capabilities: Any) -> dict[str, Any]:
+    if hasattr(capabilities, "model_dump"):
+        return capabilities.model_dump()
+    return dict(capabilities)
 
 
 def _echo_json(payload: dict[str, Any]) -> None:
