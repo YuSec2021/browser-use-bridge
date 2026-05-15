@@ -66,3 +66,5 @@
 - MessageManager.build_messages correctly merges screenshots with browser state, placing DOM text context before the image data. The `data:image/jpeg;base64,` content-type marker is correctly emitted.
 
 ## v0.14.0 — Sprint 15 [MINOR bump]
+
+## v0.15.0 — Sprint 16 [MINOR bump]
