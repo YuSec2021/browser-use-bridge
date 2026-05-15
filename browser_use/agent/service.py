@@ -7,6 +7,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from browser_use.agent.message_manager import MessageManager
+from browser_use.agent.controller import Controller, ControllerResult
+from browser_use.agent.planner import Plan, Planner, PlanningContext
 from browser_use.agent.retry import RetryController, RetryExhaustedError
 from browser_use.agent.views import ActionLoopDetector, AgentHistory, AgentHistoryList, AgentOutput
 from browser_use.browser import BrowserSession
@@ -27,9 +29,14 @@ class Agent(BaseModel):
     message_manager: MessageManager | None = None
     loop_detector: ActionLoopDetector | None = None
     retry_controller: RetryController | None = None
+    planner: Any | None = None
+    controller: Any | None = None
 
     async def run(self) -> AgentHistoryList:
         """Run the task until completion or until the maximum step count is reached."""
+        if self.planner is not None or self.controller is not None:
+            return await self._run_separated()
+
         history_list = AgentHistoryList()
         manager = self.message_manager or MessageManager(task=self.task)
         loop_detector = self.loop_detector or ActionLoopDetector()
@@ -58,6 +65,62 @@ class Agent(BaseModel):
         self.loop_detector = loop_detector
         self.retry_controller = retry_controller
         return history_list
+
+    async def _run_separated(self) -> AgentHistoryList:
+        history_list = AgentHistoryList()
+        manager = self.message_manager or MessageManager(task=self.task)
+        planner = self.planner or Planner()
+        tools = self.tools or _DefaultTools()
+        controller = self.controller or Controller(
+            tools=tools,
+            planner=planner,
+            browser_session=self.browser_session,
+        )
+        if getattr(controller, "planner", None) is None:
+            controller.planner = planner
+        if getattr(controller, "browser_session", None) is None:
+            controller.browser_session = self.browser_session
+
+        state = await self._perceive()
+        context = PlanningContext(task=self.task, browser_state=state, history=history_list)
+        plan = await self._decompose(planner, context)
+        controller_result = await self._execute_plan(controller, plan)
+        model_output = self._model_output_from_controller(plan, controller_result)
+        history = AgentHistory(
+            model_output=model_output,
+            state=state,
+            plan=plan,
+            controller_result=controller_result,
+        )
+        history_list.histories.append(history)
+        manager.add_history(history)
+
+        self.message_manager = manager
+        self.planner = planner
+        self.controller = controller
+        return history_list
+
+    async def _decompose(self, planner: Any, context: PlanningContext) -> Plan:
+        plan = planner.decompose(context)
+        if inspect.isawaitable(plan):
+            plan = await plan
+        return plan
+
+    async def _execute_plan(self, controller: Any, plan: Plan) -> ControllerResult:
+        result = controller.execute_plan(plan)
+        if inspect.isawaitable(result):
+            result = await result
+        return result
+
+    @staticmethod
+    def _model_output_from_controller(plan: Plan, result: ControllerResult) -> AgentOutput:
+        next_goal = plan.steps[0].sub_goal if plan.steps else ""
+        actions = [step.action for step in plan.steps]
+        return AgentOutput(
+            evaluation="controller completed plan" if result.success else "controller failed plan",
+            next_goal=next_goal,
+            actions=actions,
+        )
 
     async def _perceive(self) -> BrowserStateSummary:
         url = await self.browser_session.get_current_url()

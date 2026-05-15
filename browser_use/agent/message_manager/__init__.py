@@ -39,6 +39,54 @@ class MessageManager(BaseModel):
             {"role": "user", "content": content},
         ]
 
+    def build_planner_messages(
+        self,
+        task: str,
+        browser_state: BrowserStateSummary,
+        history: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        original_task = self.task
+        original_histories = self.histories
+        try:
+            self.task = task
+            if history is not None:
+                self.histories = list(getattr(history, "histories", history))
+            content = "\n\n".join(
+                part for part in self._build_content_parts(browser_state, nudge=None) if part
+            )
+            content = self._fit_to_budget(content)
+        finally:
+            self.task = original_task
+            self.histories = original_histories
+        return [
+            {
+                "role": "system",
+                "content": "You are a planner. Return structured plan steps with sub-goals and expected states.",
+            },
+            {"role": "user", "content": content},
+        ]
+
+    def build_controller_messages(
+        self,
+        plan_step: str,
+        step_results: list[Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        lines = [
+            f"Plan step: {plan_step}",
+            "Step results:",
+        ]
+        for result in step_results or []:
+            if hasattr(result, "model_dump"):
+                result = result.model_dump()
+            lines.append(f"- {result}")
+        return [
+            {
+                "role": "system",
+                "content": "You are a controller. Use action results to verify planned execution.",
+            },
+            {"role": "user", "content": "\n".join(lines)},
+        ]
+
     def _build_content_parts(
         self,
         current_state: BrowserStateSummary,

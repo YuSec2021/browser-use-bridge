@@ -25,6 +25,8 @@ class AgentHistory(BaseModel):
     model_output: AgentOutput | None = None
     state: BrowserStateSummary | None = None
     error_summary: dict[str, Any] | None = None
+    plan: Any | None = None
+    controller_result: Any | None = None
 
 
 class AgentHistoryList(BaseModel):
