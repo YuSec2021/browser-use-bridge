@@ -8,20 +8,24 @@ from pydantic import BaseModel
 
 from browser_use.tools.actions import (
     ClickParams,
+    CloseTabParams,
     DoneParams,
     ExtractContentParams,
     GoBackParams,
     InputTextParams,
+    ListTabsParams,
     NavigateParams,
     OpenTabParams,
     ScrollParams,
     SearchGoogleParams,
     SwitchTabParams,
     click,
+    close_tab,
     done,
     extract_content,
     go_back,
     input_text,
+    list_tabs,
     navigate,
     open_tab,
     scroll,
@@ -149,6 +153,20 @@ class Tools:
             "Switch the active browser tab by tab id.",
             switch_tab,
             SwitchTabParams,
+            requires_browser=True,
+        )
+        self.registry.register(
+            "close_tab",
+            "Close a browser tab by tab id.",
+            close_tab,
+            CloseTabParams,
+            requires_browser=True,
+        )
+        self.registry.register(
+            "list_tabs",
+            "List browser tabs known to the current session.",
+            list_tabs,
+            ListTabsParams,
             requires_browser=True,
         )
         self.registry.register(

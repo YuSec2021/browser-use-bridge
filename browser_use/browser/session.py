@@ -6,11 +6,13 @@ import inspect
 import socket
 import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -25,6 +27,7 @@ from .events import (
     BrowserSecurityError,
     TabClosedEvent,
     TabCreatedEvent,
+    TabSwitchedEvent,
 )
 
 
@@ -37,6 +40,24 @@ class BrowserTab:
     url: str = "about:blank"
     title: str = ""
     page: Any = None
+
+
+@dataclass
+class Tab:
+    id: str
+    url: str = "about:blank"
+    title: str = ""
+    active: bool = False
+    parent_id: str | None = None
+    created_at: float = 0.0
+    last_active: float = 0.0
+
+    def __post_init__(self) -> None:
+        now = time.time()
+        if self.created_at == 0.0:
+            self.created_at = now
+        if self.last_active == 0.0:
+            self.last_active = self.created_at if not self.active else now
 
 
 class EventBus:
@@ -76,6 +97,143 @@ class EventBus:
         future: asyncio.Future[BrowserEvent] = loop.create_future()
         self._waiters.append((event_name, future))
         return await asyncio.wait_for(future, timeout=timeout)
+
+
+class TabManager:
+    """In-memory tab manager used as the public tab state source of truth."""
+
+    def __init__(self, event_bus: EventBus | None = None) -> None:
+        self.event_bus = event_bus or EventBus()
+        self._tabs: dict[str, Tab] = {}
+        self._tab_order: list[str] = []
+        self._active_tab_id: str | None = None
+        self._preserved_context: dict[str, Any] = {}
+
+    async def open_tab(
+        self,
+        url: str,
+        focus: bool = True,
+        title: str = "",
+        parent_id: str | None = None,
+    ) -> Tab:
+        tab_id = str(uuid.uuid4())
+        should_activate = focus or self._active_tab_id is None
+        now = time.time()
+        if should_activate:
+            self._deactivate_all()
+
+        tab = Tab(
+            id=tab_id,
+            url=url,
+            title=title,
+            active=should_activate,
+            parent_id=parent_id,
+            created_at=now,
+            last_active=now,
+        )
+        self._tabs[tab.id] = tab
+        self._tab_order.append(tab.id)
+        if should_activate:
+            self._active_tab_id = tab.id
+
+        self.event_bus.emit(
+            TabCreatedEvent(
+                session=self,
+                tab_id=tab.id,
+                url=tab.url,
+                title=tab.title,
+                parent_id=tab.parent_id,
+                active=tab.active,
+            )
+        )
+        return tab
+
+    async def close_tab(self, tab_id: str) -> Tab:
+        tab = self.get_tab(tab_id)
+        index = self._tab_order.index(tab_id)
+        was_active = tab.active
+
+        self._tabs.pop(tab_id)
+        self._tab_order.pop(index)
+        self._preserved_context.pop(tab_id, None)
+
+        if was_active:
+            self._active_tab_id = None
+            replacement_id = self._replacement_active_tab_id(index)
+            if replacement_id is not None:
+                replacement = self._tabs[replacement_id]
+                replacement.active = True
+                replacement.last_active = time.time()
+                self._active_tab_id = replacement.id
+
+        closed = replace(tab, active=was_active)
+        self.event_bus.emit(
+            TabClosedEvent(
+                session=self,
+                tab_id=closed.id,
+                url=closed.url,
+                title=closed.title,
+                active=closed.active,
+            )
+        )
+        return closed
+
+    async def switch_tab(self, tab_id: str) -> Tab:
+        tab = self.get_tab(tab_id)
+        previous_tab_id = self._active_tab_id
+        if previous_tab_id == tab_id and tab.active:
+            return tab
+
+        self._deactivate_all()
+        tab.active = True
+        tab.last_active = time.time()
+        self._active_tab_id = tab.id
+
+        self.event_bus.emit(
+            TabSwitchedEvent(
+                session=self,
+                tab_id=tab.id,
+                previous_tab_id=previous_tab_id,
+                url=tab.url,
+                title=tab.title,
+            )
+        )
+        return tab
+
+    def list_tabs(self) -> list[Tab]:
+        return [self._tabs[tab_id] for tab_id in self._tab_order]
+
+    def get_tab(self, tab_id: str) -> Tab:
+        try:
+            return self._tabs[tab_id]
+        except KeyError as exc:
+            raise KeyError(f"Unknown tab id: {tab_id}") from exc
+
+    def get_active_tab(self) -> Tab:
+        if self._active_tab_id is None:
+            raise RuntimeError("No active tab")
+        return self.get_tab(self._active_tab_id)
+
+    def preserve_context(self, tab_id: str, context: Any) -> None:
+        self.get_tab(tab_id)
+        self._preserved_context[tab_id] = deepcopy(context)
+
+    def get_preserved_context(self, tab_id: str) -> Any | None:
+        if tab_id not in self._preserved_context:
+            return None
+        return deepcopy(self._preserved_context[tab_id])
+
+    def _deactivate_all(self) -> None:
+        for tab in self._tabs.values():
+            tab.active = False
+
+    def _replacement_active_tab_id(self, removed_index: int) -> str | None:
+        if not self._tab_order:
+            return None
+        previous_index = removed_index - 1
+        if previous_index >= 0:
+            return self._tab_order[previous_index]
+        return self._tab_order[0]
 
 
 class SessionManager:
@@ -217,15 +375,19 @@ class BrowserSession:
         await page.goto(url, wait_until="load")
         await self.session_manager.refresh_tab(self.session_manager.get_active_tab())
 
-    async def open_tab(self, url: str | None = None) -> BrowserTab:
+    async def open_tab(self, url: str | None = None, focus: bool = True) -> BrowserTab:
         """Open a new tab, optionally navigating it to a URL."""
         self._ensure_started()
+        previous_active_id = self.session_manager.active_tab_id
         if url is not None:
             self._enforce_allowed_domain(url)
             blank_tab = self._reusable_blank_tab()
             if blank_tab is not None:
                 await blank_tab.page.goto(url, wait_until="load")
-                self.session_manager.set_active(blank_tab.id)
+                if focus:
+                    self.session_manager.set_active(blank_tab.id)
+                elif previous_active_id is not None:
+                    self.session_manager.set_active(previous_active_id)
                 await self.session_manager.refresh_tab(blank_tab)
                 return blank_tab
         page = await self._context.new_page()
@@ -233,25 +395,61 @@ class BrowserSession:
         tab, _ = await self._register_page(page)
         if url is not None:
             await page.goto(url, wait_until="load")
+        if not focus and previous_active_id is not None:
+            self.session_manager.set_active(previous_active_id)
         await self.session_manager.refresh_tab(tab)
         return tab
 
     async def switch_tab(self, tab_id: str) -> BrowserTab:
         """Make the requested tab active and bring it to the foreground."""
+        previous_tab_id = self.session_manager.active_tab_id
         tab = self.session_manager.set_active(tab_id)
         with contextlib.suppress(Exception):
             await tab.page.bring_to_front()
         await self.session_manager.refresh_tab(tab)
+        if previous_tab_id != tab.id:
+            self.event_bus.emit(
+                TabSwitchedEvent(
+                    session=self,
+                    tab_id=tab.id,
+                    previous_tab_id=previous_tab_id,
+                    url=tab.url,
+                    title=tab.title,
+                )
+            )
         return tab
 
-    async def close_tab(self, tab_id: str) -> None:
+    async def close_tab(self, tab_id: str) -> BrowserTab:
         """Close a tab by id and emit the associated lifecycle event."""
         tab = self.session_manager.get_tab(tab_id)
+        was_active = self.session_manager.active_tab_id == tab_id
         with contextlib.suppress(Exception):
             await tab.page.close()
         removed = self.session_manager.remove_tab(tab_id)
         if removed is not None:
-            self.event_bus.emit(TabClosedEvent(session=self, tab_id=removed.id, url=removed.url))
+            self.event_bus.emit(
+                TabClosedEvent(
+                    session=self,
+                    tab_id=removed.id,
+                    url=removed.url,
+                    title=removed.title,
+                    active=was_active,
+                )
+            )
+            return removed
+        return tab
+
+    def list_tabs(self) -> list[Tab]:
+        """Return public snapshots for tabs currently known to the session."""
+        return [
+            Tab(
+                id=tab.id,
+                url=tab.url,
+                title=tab.title,
+                active=tab.id == self.session_manager.active_tab_id,
+            )
+            for tab in self.session_manager.tabs
+        ]
 
     async def get_title(self) -> str:
         """Return the active tab title."""
@@ -487,4 +685,4 @@ def _read_url(url: str) -> bytes:
         return response.read()
 
 
-__all__ = ["BrowserSession", "BrowserTab", "EventBus", "SessionManager"]
+__all__ = ["BrowserSession", "BrowserTab", "EventBus", "SessionManager", "Tab", "TabManager"]

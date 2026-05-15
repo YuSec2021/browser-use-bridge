@@ -53,12 +53,23 @@ class OpenTabParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     url: str
+    focus: bool = True
 
 
 class SwitchTabParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tab_id: str
+
+
+class CloseTabParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tab_id: str
+
+
+class ListTabsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 class DoneParams(BaseModel):
@@ -125,14 +136,24 @@ async def search_google(browser_session: Any, query: str) -> dict[str, Any]:
     return {"ok": True, "url": await browser_session.get_current_url(), "query": query}
 
 
-async def open_tab(browser_session: Any, url: str) -> dict[str, Any]:
-    tab = await browser_session.open_tab(url)
-    return {"ok": True, "tab_id": tab.id, "url": tab.url, "title": tab.title}
+async def open_tab(browser_session: Any, url: str, focus: bool = True) -> dict[str, Any]:
+    tab = await browser_session.open_tab(url, focus=focus)
+    return {"ok": True, **_tab_payload(tab, browser_session)}
 
 
 async def switch_tab(browser_session: Any, tab_id: str) -> dict[str, Any]:
     tab = await browser_session.switch_tab(tab_id)
-    return {"ok": True, "tab_id": tab.id, "url": tab.url, "title": tab.title}
+    return {"ok": True, **_tab_payload(tab, browser_session)}
+
+
+async def close_tab(browser_session: Any, tab_id: str) -> dict[str, Any]:
+    tab = await browser_session.close_tab(tab_id)
+    return {"ok": True, **_tab_payload(tab, browser_session)}
+
+
+async def list_tabs(browser_session: Any) -> dict[str, Any]:
+    tabs = browser_session.list_tabs()
+    return {"ok": True, "tabs": [_tab_payload(tab, browser_session) for tab in tabs]}
 
 
 async def done(success: bool = True, text: str = "") -> dict[str, Any]:
@@ -142,6 +163,32 @@ async def done(success: bool = True, text: str = "") -> dict[str, Any]:
 def _active_page(browser_session: Any) -> Any:
     browser_session._ensure_started()
     return browser_session.session_manager.get_active_tab().page
+
+
+def _tab_payload(tab: Any, browser_session: Any | None = None) -> dict[str, Any]:
+    if isinstance(tab, dict):
+        tab_id = tab.get("id") or tab.get("tab_id")
+        return {
+            "tab_id": tab_id,
+            "id": tab_id,
+            "url": tab.get("url", ""),
+            "title": tab.get("title", ""),
+            "active": bool(tab.get("active", False)),
+            "parent_id": tab.get("parent_id"),
+        }
+
+    tab_id = getattr(tab, "id", "")
+    active = getattr(tab, "active", None)
+    if active is None and browser_session is not None:
+        active = getattr(getattr(browser_session, "session_manager", None), "active_tab_id", None) == tab_id
+    return {
+        "tab_id": tab_id,
+        "id": tab_id,
+        "url": getattr(tab, "url", ""),
+        "title": getattr(tab, "title", ""),
+        "active": bool(active),
+        "parent_id": getattr(tab, "parent_id", None),
+    }
 
 
 async def _settle_page(page: Any) -> None:
@@ -308,20 +355,24 @@ _EXTRACT_CONTENT_SCRIPT = r"""
 
 __all__ = [
     "ClickParams",
+    "CloseTabParams",
     "DoneParams",
     "ExtractContentParams",
     "GoBackParams",
     "InputTextParams",
+    "ListTabsParams",
     "NavigateParams",
     "OpenTabParams",
     "ScrollParams",
     "SearchGoogleParams",
     "SwitchTabParams",
     "click",
+    "close_tab",
     "done",
     "extract_content",
     "go_back",
     "input_text",
+    "list_tabs",
     "navigate",
     "open_tab",
     "scroll",

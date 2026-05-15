@@ -32,12 +32,25 @@ class BrowserCrashedEvent(BrowserEvent):
 class TabCreatedEvent(BrowserEvent):
     tab_id: str = ""
     url: str = ""
+    title: str = ""
+    parent_id: str | None = None
+    active: bool = False
 
 
 @dataclass
 class TabClosedEvent(BrowserEvent):
     tab_id: str = ""
     url: str = ""
+    title: str = ""
+    active: bool = False
+
+
+@dataclass
+class TabSwitchedEvent(BrowserEvent):
+    tab_id: str = ""
+    previous_tab_id: str | None = None
+    url: str = ""
+    title: str = ""
 
 
 @dataclass
@@ -55,4 +68,5 @@ __all__ = [
     "DomUpdatedEvent",
     "TabClosedEvent",
     "TabCreatedEvent",
+    "TabSwitchedEvent",
 ]
