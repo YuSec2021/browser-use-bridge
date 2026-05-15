@@ -31,6 +31,7 @@ class Agent(BaseModel):
     retry_controller: RetryController | None = None
     planner: Any | None = None
     controller: Any | None = None
+    memory_store: Any | None = None
 
     async def run(self) -> AgentHistoryList:
         """Run the task until completion or until the maximum step count is reached."""
@@ -38,7 +39,9 @@ class Agent(BaseModel):
             return await self._run_separated()
 
         history_list = AgentHistoryList()
-        manager = self.message_manager or MessageManager(task=self.task)
+        manager = self.message_manager or MessageManager(task=self.task, memory_store=self.memory_store)
+        if self.memory_store is not None and manager.memory_store is None:
+            manager.memory_store = self.memory_store
         loop_detector = self.loop_detector or ActionLoopDetector()
         retry_controller = self.retry_controller or RetryController()
         tools = self.tools or _DefaultTools()
@@ -52,6 +55,7 @@ class Agent(BaseModel):
             history = AgentHistory(model_output=model_output, state=state)
             history_list.histories.append(history)
             manager.add_history(history)
+            self._remember_step(history)
 
             try:
                 should_stop = await self._act(model_output, state, loop_detector, retry_controller, tools)
@@ -68,7 +72,9 @@ class Agent(BaseModel):
 
     async def _run_separated(self) -> AgentHistoryList:
         history_list = AgentHistoryList()
-        manager = self.message_manager or MessageManager(task=self.task)
+        manager = self.message_manager or MessageManager(task=self.task, memory_store=self.memory_store)
+        if self.memory_store is not None and manager.memory_store is None:
+            manager.memory_store = self.memory_store
         planner = self.planner or Planner()
         tools = self.tools or _DefaultTools()
         controller = self.controller or Controller(
@@ -94,11 +100,20 @@ class Agent(BaseModel):
         )
         history_list.histories.append(history)
         manager.add_history(history)
+        self._remember_step(history)
 
         self.message_manager = manager
         self.planner = planner
         self.controller = controller
         return history_list
+
+    def _remember_step(self, history: AgentHistory) -> None:
+        store = self.memory_store or getattr(self.message_manager, "memory_store", None)
+        if store is None:
+            return
+        remember = getattr(store, "add_from_agent_step", None) or getattr(store, "remember_step", None)
+        if remember is not None:
+            remember(history, task_id=self.task)
 
     async def _decompose(self, planner: Any, context: PlanningContext) -> Plan:
         plan = planner.decompose(context)

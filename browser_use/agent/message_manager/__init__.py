@@ -15,6 +15,8 @@ class MessageManager(BaseModel):
     max_tokens: int = 4000
     keep_recent_steps: int = 3
     histories: list[AgentHistory] = Field(default_factory=list)
+    memory_store: Any | None = None
+    memory_top_k: int = 5
 
     def add_history(self, history: AgentHistory) -> None:
         self.histories.append(history)
@@ -102,6 +104,7 @@ class MessageManager(BaseModel):
         older, recent = self._split_history()
         parts = [
             f"Task: {self.task}",
+            self._format_memory_context(),
             self._format_current_state(current_state),
         ]
         if older:
@@ -126,6 +129,23 @@ class MessageManager(BaseModel):
                 f"- elements: {self._format_elements(state.elements)}",
             ]
         )
+
+    def _format_memory_context(self) -> str:
+        if self.memory_store is None:
+            return ""
+        try:
+            entries = self.memory_store.search(self.task, top_k=self.memory_top_k)
+        except Exception:
+            return ""
+        if not entries:
+            return ""
+        lines = ["Relevant memory:"]
+        for entry in entries:
+            memory_type = getattr(getattr(entry, "type", ""), "value", getattr(entry, "type", ""))
+            text = str(getattr(entry, "text", "")).strip()
+            if text:
+                lines.append(f"- [{memory_type}] {text}")
+        return "\n".join(lines)
 
     def _summarize_history(self, histories: list[AgentHistory]) -> str:
         lines = ["Compressed older history:"]

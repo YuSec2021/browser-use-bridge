@@ -21,6 +21,7 @@ from browser_use.agent import Agent
 from browser_use.browser import BrowserSession
 from browser_use.checkpoint import CheckpointManager
 from browser_use.dom import DomService
+from browser_use.memory import MemoryStore, MemoryType
 from browser_use.mcp import BrowserUseServer, claude_desktop_config
 from browser_use.observability import ObservabilityEvent, ObservabilityHub
 from browser_use.tools import Tools
@@ -342,6 +343,82 @@ def resume(checkpoint_id: str, task_id: str | None, dry_run: bool, json_output: 
     click.echo(f"{payload['status']}: {checkpoint.checkpoint_id} step={checkpoint.step_counter}")
 
 
+@main.group("memory")
+def memory_command() -> None:
+    """Manage long-term memory entries."""
+
+
+@memory_command.command("add")
+@click.argument("text")
+@click.option(
+    "--type",
+    "memory_type",
+    type=click.Choice([memory_type.value for memory_type in MemoryType]),
+    default=MemoryType.SEMANTIC.value,
+    show_default=True,
+)
+@click.option("--metadata", multiple=True, help="Metadata as key=value. May be repeated.")
+@click.option("--json", "json_output", is_flag=True, help="Emit the saved entry as JSON.")
+def memory_add(text: str, memory_type: str, metadata: tuple[str, ...], json_output: bool) -> None:
+    """Add a memory entry."""
+
+    entry = _memory_store().add(text, type=memory_type, metadata=_parse_metadata(metadata))
+    payload = entry.model_dump(mode="json")
+    if json_output:
+        _echo_json(payload)
+        return
+    click.echo(f"{entry.entry_id}\t{entry.type.value}\t{entry.text}")
+
+
+@memory_command.command("search")
+@click.argument("query")
+@click.option("--top-k", default=5, show_default=True, type=click.IntRange(min=1), help="Maximum memories to return.")
+@click.option(
+    "--type",
+    "memory_type",
+    type=click.Choice([memory_type.value for memory_type in MemoryType]),
+    default=None,
+    help="Only search memories of this type.",
+)
+@click.option("--json", "json_output", is_flag=True, help="Emit search results as JSON.")
+def memory_search(query: str, top_k: int, memory_type: str | None, json_output: bool) -> None:
+    """Search memory entries."""
+
+    entries = _memory_store().search(query, top_k=top_k, type=memory_type)
+    payload = {"memories": [entry.model_dump(mode="json") for entry in entries]}
+    if json_output:
+        _echo_json(payload)
+        return
+    for entry in entries:
+        score = "" if entry.score is None else f"\tscore={entry.score:.4f}"
+        click.echo(f"{entry.entry_id}\t{entry.type.value}{score}\t{entry.text}")
+
+
+@memory_command.command("clear")
+@click.option("--json", "json_output", is_flag=True, help="Emit clear result as JSON.")
+def memory_clear(json_output: bool) -> None:
+    """Clear all memory entries."""
+
+    _memory_store().clear()
+    payload = {"cleared": True}
+    if json_output:
+        _echo_json(payload)
+        return
+    click.echo("cleared=True")
+
+
+@memory_command.command("stats")
+@click.option("--json", "json_output", is_flag=True, help="Emit memory statistics as JSON.")
+def memory_stats(json_output: bool) -> None:
+    """Show memory statistics."""
+
+    payload = _memory_store().stats()
+    if json_output:
+        _echo_json(payload)
+        return
+    click.echo(f"backend={payload['backend']} count={payload['count']}")
+
+
 async def _inspect_url(url: str, max_elements: int) -> dict[str, Any]:
     session = BrowserSession()
     try:
@@ -459,6 +536,20 @@ def _echo_json(payload: dict[str, Any]) -> None:
 
 def _checkpoint_manager() -> CheckpointManager:
     return CheckpointManager(storage_dir=os.getenv("BROWSER_USE_CHECKPOINT_DIR"))
+
+
+def _memory_store() -> MemoryStore:
+    return MemoryStore(storage_path=os.getenv("BROWSER_USE_MEMORY_PATH"))
+
+
+def _parse_metadata(values: tuple[str, ...]) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    for value in values:
+        if "=" not in value:
+            raise click.BadParameter("metadata values must use key=value format", param_hint="--metadata")
+        key, item = value.split("=", 1)
+        metadata[key] = item
+    return metadata
 
 
 def _checkpoint_payload(checkpoint: Any) -> dict[str, Any]:
