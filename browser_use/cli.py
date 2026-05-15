@@ -99,10 +99,9 @@ def _build_llm(provider: str, model: str | None, api_key: str | None) -> Any:
 
         return ChatMiniMax(model=model, api_key=api_key)
     if provider == "ollama":
-        raise click.UsageError(
-            "Ollama is not yet implemented. "
-            "Available providers: openai, anthropic, google, kimi, qwen, glm, minimax."
-        )
+        from browser_use.llm import ChatOllama
+
+        return ChatOllama(model=model)
 
     raise click.UsageError(f"Unknown provider: {provider!r}")
 
@@ -113,7 +112,7 @@ def _build_llm(provider: str, model: str | None, api_key: str | None) -> Any:
 @click.option("--mock-llm", is_flag=True, help="Use deterministic local planning without a paid LLM provider.")
 @click.option(
     "--provider",
-    type=click.Choice(["openai", "anthropic", "google", "kimi", "qwen", "glm", "minimax"]),
+    type=click.Choice(["openai", "anthropic", "google", "kimi", "qwen", "glm", "minimax", "ollama"]),
     default=None,
     help="LLM provider. Required for real LLM execution (not --mock-llm).",
 )
@@ -168,6 +167,22 @@ def list_tools(json_output: bool) -> None:
 
     for tool in tools:
         click.echo(f"{tool['name']}\t{tool['description']}")
+
+
+@main.command("list-providers")
+@click.option("--json", "json_output", is_flag=True, help="Emit provider metadata as structured JSON.")
+def list_providers(json_output: bool) -> None:
+    """List supported LLM providers and local availability metadata."""
+
+    payload = {"providers": _provider_metadata()}
+    if json_output:
+        _echo_json(payload)
+        return
+
+    for provider in payload["providers"]:
+        status = "available" if provider["available"] else "unavailable"
+        models = ", ".join(provider["models"]) if provider["models"] else provider["default_model"]
+        click.echo(f"{provider['name']}\t{status}\tdefault={provider['default_model']}\tmodels={models}")
 
 
 @main.command("inspect")
@@ -553,6 +568,63 @@ def _check_cdp_session(cdp_url: str) -> dict[str, Any]:
             "status": "connection_failed",
             "error": str(exc),
         }
+
+
+def _provider_metadata() -> list[dict[str, Any]]:
+    providers: list[dict[str, Any]] = []
+    env_map = {
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "google": "GOOGLE_API_KEY",
+        "kimi": "MOONSHOT_API_KEY",
+        "qwen": "DASHSCOPE_API_KEY",
+        "glm": "ZHIPU_API_KEY",
+        "minimax": "MINIMAX_API_KEY",
+    }
+    for name, default_model in PROVIDER_DEFAULTS.items():
+        if name == "ollama":
+            providers.append(_ollama_provider_metadata(default_model))
+            continue
+        env_var = env_map.get(name)
+        providers.append(
+            {
+                "name": name,
+                "available": bool(os.getenv(env_var or "")),
+                "requires_api_key": True,
+                "default_model": default_model,
+                "models": [default_model],
+            }
+        )
+    return providers
+
+
+def _ollama_provider_metadata(default_model: str) -> dict[str, Any]:
+    from browser_use.llm.ollama import DEFAULT_OLLAMA_BASE_URL, OllamaHealthChecker
+
+    base_url = os.getenv("BROWSER_USE_OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL)
+
+    async def check() -> Any:
+        return await OllamaHealthChecker(base_url=base_url, timeout=2).check()
+
+    try:
+        status = asyncio.run(check())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        try:
+            status = loop.run_until_complete(check())
+        finally:
+            loop.close()
+
+    models = status.available_models if status.connected else []
+    return {
+        "name": "ollama",
+        "available": status.connected,
+        "requires_api_key": False,
+        "default_model": models[0] if models else default_model,
+        "models": models,
+        "base_url": status.base_url,
+        "error": status.error,
+    }
 
 
 def _echo_json(payload: dict[str, Any]) -> None:
