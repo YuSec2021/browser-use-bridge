@@ -46,3 +46,11 @@
 - `--log-json --log-file` produces JSON lines on disk. `--json` flag produces structured JSON to stdout. `BROWSER_USE_TRACE_ID` env var sets trace ID across both output streams. All trace IDs are consistent at `sprint10-trace-001`.
 - `ObservabilityHub` dispatches events to both `langsmith` and `langfuse` hooks. Payload includes `trace_id`, `name`, and `payload` fields exactly as specified. No network access or third-party SDK imports required.
 - `BrowserSession(profile=BrowserProfile(allowed_domains=['allowed.example'], proxy={'server': 'http://127.0.0.1:7777'}))` launched a Chromium process with `--proxy-server=http://127.0.0.1:7777` flag. Navigation to `https://blocked.example/...` raised `BrowserSecurityError` with `blocked.example` in the message. Both `session.navigate` and `session.open_tab` were blocked.
+
+## v0.11.0 — Sprint 12 [MINOR bump]
+- Deterministic exponential backoff confirmed. No jitter variance observed with jitter=0.0.
+- classify_error() correctly maps BrowserSecurityError to NON_RECOVERABLE and TimeoutError to RECOVERABLE. No retry for non-recoverable errors.
+- Browser state (url) preserved across retries. RetryController used injectably. Final history entry shows successful completion.
+- Page fingerprint uses stable JSON of URL + normalized element keys (index, tag, tag_name, text, href, type). Changed element text produces different fingerprint, preventing false positive loop detection.
+- Nudge injected via `manager.build_messages(state, nudge=nudge)`. Loop detector state reset after nudge consumed (consume_nudge clears recent_actions). Agent successfully broke the loop.
+- RetryExhaustedError.summary is a structured dict with full attempt history including error_type, error message, category, and delay per attempt. Abort strategy selected from RecoveryStrategy enum.
