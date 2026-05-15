@@ -3,8 +3,11 @@ from browser_use.config import BrowserProfile, BrowserUseConfig, BrowserViewport
 from browser_use.browser import BrowserSession, SessionManager
 from browser_use.tui import BrowserUseTUI, DashboardState
 from browser_use.tools import Tools
+from browser_use.vision import AnnotatedScreenshot, BoundingBox, VisionAnalysis, VisionModel, VisionService
 
 __all__ = [
+    "AnnotatedScreenshot",
+    "BoundingBox",
     "BrowserProfile",
     "BrowserSession",
     "BrowserUseTUI",
@@ -21,5 +24,8 @@ __all__ = [
     "SessionManager",
     "StepResult",
     "Tools",
+    "VisionAnalysis",
+    "VisionModel",
+    "VisionService",
     "load_config",
 ]

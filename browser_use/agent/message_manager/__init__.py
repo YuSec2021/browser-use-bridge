@@ -23,11 +23,18 @@ class MessageManager(BaseModel):
         self,
         current_state: BrowserStateSummary,
         nudge: str | None = None,
+        screenshots: list[Any] | None = None,
     ) -> list[dict[str, Any]]:
         content = "\n\n".join(
             part for part in self._build_content_parts(current_state, nudge) if part
         )
         content = self._fit_to_budget(content)
+        user_content: str | list[dict[str, Any]]
+        if screenshots:
+            user_content = [{"type": "text", "text": content}]
+            user_content.extend(self._format_screenshot_parts(screenshots))
+        else:
+            user_content = content
         return [
             {
                 "role": "system",
@@ -36,7 +43,7 @@ class MessageManager(BaseModel):
                     "with thinking, evaluation, memory, next_goal, and actions."
                 ),
             },
-            {"role": "user", "content": content},
+            {"role": "user", "content": user_content},
         ]
 
     def build_planner_messages(
@@ -172,7 +179,56 @@ class MessageManager(BaseModel):
     def _format_elements(elements: list[Any]) -> str:
         if not elements:
             return "[]"
-        return str(elements[:20])
+        rows: list[str] = []
+        for element in elements[:20]:
+            if hasattr(element, "model_dump"):
+                element = element.model_dump()
+            if isinstance(element, dict):
+                index = element.get("index")
+                tag = element.get("tag") or element.get("tag_name") or element.get("role") or "element"
+                text = element.get("text") or element.get("label") or element.get("aria_label") or ""
+                if index is not None:
+                    rows.append(f"[{index}] <{tag}> {text}".strip())
+                else:
+                    rows.append(str(element))
+            else:
+                rows.append(str(element))
+        return "\n".join(rows)
+
+    @staticmethod
+    def _format_screenshot_parts(screenshots: list[Any]) -> list[dict[str, Any]]:
+        parts: list[dict[str, Any]] = []
+        for screenshot in screenshots:
+            boxes = getattr(screenshot, "bounding_boxes", [])
+            box_lines = []
+            for box in boxes:
+                index = getattr(box, "index", None)
+                label = getattr(box, "label", None) or getattr(box, "text", None) or ""
+                if index is not None:
+                    box_lines.append(f"[{index}] {label}".strip())
+            parts.append(
+                {
+                    "type": "text",
+                    "text": "\n".join(
+                        [
+                            f"Annotated screenshot ({getattr(screenshot, 'content_type', 'image/jpeg')}):",
+                            *box_lines,
+                        ]
+                    ),
+                }
+            )
+            parts.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": (
+                            f"data:{getattr(screenshot, 'content_type', 'image/jpeg')};base64,"
+                            f"{getattr(screenshot, 'base64_data', '')}"
+                        )
+                    },
+                }
+            )
+        return parts
 
 
 __all__ = ["MessageManager"]
