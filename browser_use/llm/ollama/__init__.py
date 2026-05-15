@@ -78,7 +78,7 @@ class OllamaHealthChecker:
                 connected=False,
                 base_url=self.base_url,
                 available_models=[],
-                error=str(exc),
+                error=str(exc) or type(exc).__name__,
             )
             return self.status
 
