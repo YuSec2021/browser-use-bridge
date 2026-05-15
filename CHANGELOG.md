@@ -54,3 +54,5 @@
 - Page fingerprint uses stable JSON of URL + normalized element keys (index, tag, tag_name, text, href, type). Changed element text produces different fingerprint, preventing false positive loop detection.
 - Nudge injected via `manager.build_messages(state, nudge=nudge)`. Loop detector state reset after nudge consumed (consume_nudge clears recent_actions). Agent successfully broke the loop.
 - RetryExhaustedError.summary is a structured dict with full attempt history including error_type, error message, category, and delay per attempt. Abort strategy selected from RecoveryStrategy enum.
+
+## v0.12.0 — Sprint 13 [MINOR bump]
