@@ -80,3 +80,5 @@
 - GIF export produces a valid animated image with configurable parameters. JSON sidecar correctly encodes fps, loop, and per-frame action labels.
 - The `browser-use-bridge replay` CLI command supports all contracted formats and correctly reports structured JSON output with generated file paths.
 - The exporter correctly isolates exports by task_id even when checkpoint_id collides. Repeat calls with same parameters produce identical output (deterministic).
+
+## v0.19.0 — Sprint 20 [MINOR bump]
