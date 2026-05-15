@@ -17,7 +17,9 @@ import click
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from browser_use.agent import Agent
 from browser_use.browser import BrowserSession
+from browser_use.checkpoint import CheckpointManager
 from browser_use.dom import DomService
 from browser_use.mcp import BrowserUseServer, claude_desktop_config
 from browser_use.observability import ObservabilityEvent, ObservabilityHub
@@ -36,10 +38,85 @@ def main() -> None:
     """browser-use developer CLI."""
 
 
+PROVIDER_DEFAULTS = {
+    "openai": "gpt-4o",
+    "anthropic": "claude-sonnet-4-20250514",
+    "google": "gemini-2.0-flash",
+    "kimi": "kimi-k2",
+    "qwen": "qwen-max-latest",
+    "glm": "glm-4-flash",
+    "minimax": "MiniMax-M2",
+    "ollama": "llama3",
+}
+
+
+def _build_llm(provider: str, model: str | None, api_key: str | None) -> Any:
+    """Create an LLM adapter from provider name and optional overrides."""
+    model = model or PROVIDER_DEFAULTS.get(provider, "gpt-4o")
+
+    if api_key is None:
+        env_map = {
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "google": "GOOGLE_API_KEY",
+            "kimi": "MOONSHOT_API_KEY",
+            "qwen": "DASHSCOPE_API_KEY",
+            "glm": "ZHIPU_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
+            "ollama": None,
+        }
+        env_var = env_map.get(provider)
+        api_key = os.getenv(env_var) if env_var else None
+
+    if provider == "openai":
+        from browser_use.llm import ChatOpenAI
+
+        return ChatOpenAI(model=model, api_key=api_key)
+    if provider == "anthropic":
+        from browser_use.llm import ChatAnthropic
+
+        return ChatAnthropic(model=model, api_key=api_key)
+    if provider == "google":
+        from browser_use.llm import ChatGoogle
+
+        return ChatGoogle(model=model, api_key=api_key)
+    if provider == "kimi":
+        from browser_use.llm import ChatKimi
+
+        return ChatKimi(model=model, api_key=api_key)
+    if provider == "qwen":
+        from browser_use.llm import ChatQwen
+
+        return ChatQwen(model=model, api_key=api_key)
+    if provider == "glm":
+        from browser_use.llm import ChatGLM
+
+        return ChatGLM(model=model, api_key=api_key)
+    if provider == "minimax":
+        from browser_use.llm import ChatMiniMax
+
+        return ChatMiniMax(model=model, api_key=api_key)
+    if provider == "ollama":
+        raise click.UsageError(
+            "Ollama is not yet implemented. "
+            "Available providers: openai, anthropic, google, kimi, qwen, glm, minimax."
+        )
+
+    raise click.UsageError(f"Unknown provider: {provider!r}")
+
+
 @main.command("run")
 @click.option("--task", required=True, help="Natural-language browser automation task to execute.")
 @click.option("--url", default=None, help="Page URL to open before running the task.")
 @click.option("--mock-llm", is_flag=True, help="Use deterministic local planning without a paid LLM provider.")
+@click.option(
+    "--provider",
+    type=click.Choice(["openai", "anthropic", "google", "kimi", "qwen", "glm", "minimax"]),
+    default=None,
+    help="LLM provider. Required for real LLM execution (not --mock-llm).",
+)
+@click.option("--model", default=None, help="Model name. Provider default is used if omitted.")
+@click.option("--api-key", default=None, help="API key. Falls back to environment variables.")
 @click.option("--max-steps", default=20, show_default=True, type=click.IntRange(min=1), help="Maximum automation steps.")
 @click.option("--json", "json_output", is_flag=True, help="Emit a structured JSON result.")
 @click.option("--log-json", is_flag=True, help="Write structured JSON execution logs.")
@@ -48,6 +125,9 @@ def run(
     task: str,
     url: str | None,
     mock_llm: bool,
+    provider: str | None,
+    model: str | None,
+    api_key: str | None,
     max_steps: int,
     json_output: bool,
     log_json: bool,
@@ -55,11 +135,18 @@ def run(
 ) -> None:
     """Run a browser automation task."""
 
-    if not mock_llm:
-        raise click.UsageError("Use --mock-llm for deterministic local execution in this build.")
-
     hub = ObservabilityHub(trace_id=os.getenv("BROWSER_USE_TRACE_ID"), log_file=log_file, log_json=log_json)
-    result = asyncio.run(_run_mock_task(task=task, url=url, max_steps=max_steps, observability=hub))
+
+    if mock_llm:
+        result = asyncio.run(_run_mock_task(task=task, url=url, max_steps=max_steps, observability=hub))
+    else:
+        if provider is None and model is not None:
+            provider = "openai"
+        if provider is None:
+            raise click.UsageError("Specify --provider (openai, anthropic, google, kimi, qwen, glm, minimax, ollama) for real LLM execution.")
+        llm = _build_llm(provider, model, api_key)
+        result = asyncio.run(_run_agent_task(task=task, url=url, llm=llm, max_steps=max_steps, observability=hub))
+
     if json_output:
         _echo_json(result)
         return
@@ -193,6 +280,68 @@ def mcp(stdio: bool, claude_config: bool, json_output: bool) -> None:
     asyncio.run(BrowserUseServer().run_stdio())
 
 
+@main.group("checkpoint")
+def checkpoint_command() -> None:
+    """Manage saved task checkpoints."""
+
+
+@checkpoint_command.command("list")
+@click.option("--task-id", default=None, help="Only list checkpoints for this task id.")
+@click.option("--json", "json_output", is_flag=True, help="Emit checkpoint metadata as JSON.")
+def checkpoint_list(task_id: str | None, json_output: bool) -> None:
+    """List saved checkpoints."""
+
+    checkpoints = [_checkpoint_payload(checkpoint) for checkpoint in _checkpoint_manager().list_checkpoints(task_id=task_id)]
+    if json_output:
+        _echo_json({"checkpoints": checkpoints})
+        return
+
+    for checkpoint in checkpoints:
+        click.echo(
+            f"{checkpoint['checkpoint_id']}\t{checkpoint['task_id']}\t"
+            f"step={checkpoint['step_counter']}\t{checkpoint['label']}"
+        )
+
+
+@checkpoint_command.command("delete")
+@click.argument("checkpoint_id")
+@click.option("--task-id", default=None, help="Task id that owns the checkpoint.")
+@click.option("--json", "json_output", is_flag=True, help="Emit deletion result as JSON.")
+def checkpoint_delete(checkpoint_id: str, task_id: str | None, json_output: bool) -> None:
+    """Delete a saved checkpoint."""
+
+    deleted = _checkpoint_manager().delete(checkpoint_id, task_id=task_id)
+    payload = {"deleted": deleted, "checkpoint_id": checkpoint_id}
+    if json_output:
+        _echo_json(payload)
+        return
+    click.echo(f"deleted={deleted} checkpoint_id={checkpoint_id}")
+
+
+@main.command("resume")
+@click.argument("checkpoint_id")
+@click.option("--task-id", default=None, help="Task id that owns the checkpoint.")
+@click.option("--dry-run", is_flag=True, help="Load the checkpoint and report resume readiness without running.")
+@click.option("--json", "json_output", is_flag=True, help="Emit resume status as JSON.")
+def resume(checkpoint_id: str, task_id: str | None, dry_run: bool, json_output: bool) -> None:
+    """Resume a task from a saved checkpoint."""
+
+    checkpoint = _checkpoint_manager().load(checkpoint_id, task_id=task_id)
+    payload = {
+        "status": "ready_to_resume" if dry_run else "loaded",
+        "checkpoint_id": checkpoint.checkpoint_id,
+        "task_id": checkpoint.task_id,
+        "step_counter": checkpoint.step_counter,
+        "current_url": checkpoint.current_url,
+        "pending_actions": checkpoint.pending_actions_queue,
+        "label": checkpoint.label,
+    }
+    if json_output:
+        _echo_json(payload)
+        return
+    click.echo(f"{payload['status']}: {checkpoint.checkpoint_id} step={checkpoint.step_counter}")
+
+
 async def _inspect_url(url: str, max_elements: int) -> dict[str, Any]:
     session = BrowserSession()
     try:
@@ -208,6 +357,43 @@ async def _inspect_url(url: str, max_elements: int) -> dict[str, Any]:
         return _inspect_static_url(url, max_elements)
     finally:
         await session.close()
+
+
+async def _run_agent_task(
+    task: str,
+    url: str | None,
+    llm: Any,
+    max_steps: int,
+    observability: ObservabilityHub | None = None,
+) -> dict[str, Any]:
+    hub = observability or ObservabilityHub()
+    hub.emit(ObservabilityEvent(name="run_started", payload={"task": task, "url": url, "max_steps": max_steps}))
+
+    session = BrowserSession()
+    tools = Tools()
+    try:
+        await session.start()
+        if url:
+            await session.navigate(url)
+
+        agent = Agent(task=task, llm=llm, browser_session=session, tools=tools, max_steps=max_steps)
+        history_list = await agent.run()
+
+        last = history_list.histories[-1] if history_list.histories else None
+        result = {
+            "task": task,
+            "status": "done",
+            "steps": len(history_list.histories),
+            "final_result": last.model_output.next_goal if last else "",
+            "url": last.state.url if last else "",
+            "title": last.state.title if last else "",
+            "trace_id": hub.trace_id,
+        }
+    finally:
+        await session.close()
+
+    hub.emit(ObservabilityEvent(name="run_finished", payload=result))
+    return result
 
 
 async def _run_mock_task(
@@ -269,6 +455,14 @@ def _check_cdp_session(cdp_url: str) -> dict[str, Any]:
 
 def _echo_json(payload: dict[str, Any]) -> None:
     click.echo(json.dumps(payload, ensure_ascii=False))
+
+
+def _checkpoint_manager() -> CheckpointManager:
+    return CheckpointManager(storage_dir=os.getenv("BROWSER_USE_CHECKPOINT_DIR"))
+
+
+def _checkpoint_payload(checkpoint: Any) -> dict[str, Any]:
+    return checkpoint.model_dump(mode="json")
 
 
 def _inspect_static_url(url: str, max_elements: int) -> dict[str, Any]:
