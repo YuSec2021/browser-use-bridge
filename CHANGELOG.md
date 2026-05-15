@@ -64,3 +64,5 @@
 - The VisionService correctly builds multi-part messages with text + image_url, parses the model response into typed VisionAnalysis, and correlates results back to annotated screenshots.
 - The refine loop correctly implements the threshold-gated retry pattern. It compares confidences, replaces the best result, and stops when threshold is met or max_refinements exhausted.
 - MessageManager.build_messages correctly merges screenshots with browser state, placing DOM text context before the image data. The `data:image/jpeg;base64,` content-type marker is correctly emitted.
+
+## v0.14.0 — Sprint 15 [MINOR bump]
