@@ -68,3 +68,5 @@
 ## v0.14.0 — Sprint 15 [MINOR bump]
 
 ## v0.15.0 — Sprint 16 [MINOR bump]
+
+## v0.16.0 — Sprint 17 [MINOR bump]
