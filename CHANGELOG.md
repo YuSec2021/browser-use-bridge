@@ -72,3 +72,11 @@
 ## v0.16.0 — Sprint 17 [MINOR bump]
 
 ## v0.17.0 — Sprint 18 [MINOR bump]
+
+## v0.18.0 — Sprint 19 [MINOR bump]
+- The public API surface is clean. `from browser_use import HistoryExporter` resolves to the correct module class. JSON schema is complete with every contracted field present.
+- DOM diff algorithm correctly handles the three-element state transition chain. Added, removed, and modified elements are all properly computed from consecutive step comparisons.
+- HTML is fully self-contained. All required UI components are present. Terminal Precision dark theme colors are embedded inline.
+- GIF export produces a valid animated image with configurable parameters. JSON sidecar correctly encodes fps, loop, and per-frame action labels.
+- The `browser-use-bridge replay` CLI command supports all contracted formats and correctly reports structured JSON output with generated file paths.
+- The exporter correctly isolates exports by task_id even when checkpoint_id collides. Repeat calls with same parameters produce identical output (deterministic).
