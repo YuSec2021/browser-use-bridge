@@ -24,6 +24,7 @@ class AgentHistory(BaseModel):
 
     model_output: AgentOutput | None = None
     state: BrowserStateSummary | None = None
+    error_summary: dict[str, Any] | None = None
 
 
 class AgentHistoryList(BaseModel):
@@ -59,14 +60,13 @@ class ActionLoopDetector(BaseModel):
         if self.max_repetitions <= 1 or len(self.recent_actions) < self.max_repetitions:
             return False
         tail = self.recent_actions[-self.max_repetitions :]
-        return all(action == tail[0] for action in tail)
+        return all(entry["action"] == tail[0]["action"] and entry["page"] == tail[0]["page"] for entry in tail)
 
     def record_action(self, action: Any, state: BrowserStateSummary | None = None) -> None:
         self.recent_actions.append(
             {
-                "action": action,
-                "url": state.url if state is not None else "",
-                "title": state.title if state is not None else "",
+                "action": self._stable_json(action),
+                "page": self._page_fingerprint(state),
             }
         )
         max_history = max(self.max_repetitions * 2, self.max_repetitions, 1)
@@ -78,3 +78,29 @@ class ActionLoopDetector(BaseModel):
             return None
         self.recent_actions.clear()
         return self.nudge
+
+    @classmethod
+    def _page_fingerprint(cls, state: BrowserStateSummary | None) -> str:
+        if state is None:
+            return ""
+        elements = [
+            cls._normalize_element(element)
+            for element in state.elements
+        ]
+        return cls._stable_json({"url": state.url, "elements": elements})
+
+    @staticmethod
+    def _normalize_element(element: Any) -> Any:
+        if hasattr(element, "model_dump"):
+            element = element.model_dump(exclude_none=True)
+        if not isinstance(element, dict):
+            return str(element)
+        return {
+            key: element.get(key)
+            for key in ("index", "tag", "tag_name", "text", "href", "type")
+            if element.get(key) not in (None, "")
+        }
+
+    @staticmethod
+    def _stable_json(value: Any) -> str:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)

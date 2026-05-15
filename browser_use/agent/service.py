@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from browser_use.agent.message_manager import MessageManager
+from browser_use.agent.retry import RetryController, RetryExhaustedError
 from browser_use.agent.views import ActionLoopDetector, AgentHistory, AgentHistoryList, AgentOutput
 from browser_use.browser import BrowserSession
 from browser_use.browser.views import BrowserStateSummary
@@ -25,12 +26,14 @@ class Agent(BaseModel):
     max_steps: int = 20
     message_manager: MessageManager | None = None
     loop_detector: ActionLoopDetector | None = None
+    retry_controller: RetryController | None = None
 
     async def run(self) -> AgentHistoryList:
         """Run the task until completion or until the maximum step count is reached."""
         history_list = AgentHistoryList()
         manager = self.message_manager or MessageManager(task=self.task)
         loop_detector = self.loop_detector or ActionLoopDetector()
+        retry_controller = self.retry_controller or RetryController()
         tools = self.tools or _DefaultTools()
 
         for _ in range(self.max_steps):
@@ -43,12 +46,17 @@ class Agent(BaseModel):
             history_list.histories.append(history)
             manager.add_history(history)
 
-            should_stop = await self._act(model_output, state, loop_detector, tools)
+            try:
+                should_stop = await self._act(model_output, state, loop_detector, retry_controller, tools)
+            except RetryExhaustedError as error:
+                history.error_summary = error.summary
+                break
             if should_stop:
                 break
 
         self.message_manager = manager
         self.loop_detector = loop_detector
+        self.retry_controller = retry_controller
         return history_list
 
     async def _perceive(self) -> BrowserStateSummary:
@@ -104,14 +112,23 @@ class Agent(BaseModel):
         model_output: AgentOutput,
         state: BrowserStateSummary,
         loop_detector: ActionLoopDetector,
+        retry_controller: RetryController,
         tools: Any,
     ) -> bool:
         for action in model_output.actions:
-            await self._execute_action(tools, action)
+            await retry_controller.run(
+                lambda action=action: self._execute_action(tools, action),
+                operation=self._operation_name(action),
+            )
             loop_detector.record_action(action, state)
             if isinstance(action, dict) and "done" in action:
                 return True
         return False
+
+    def _operation_name(self, action: Any) -> str:
+        if isinstance(action, dict) and len(action) == 1:
+            return f"action:{next(iter(action))}"
+        return "action:unknown"
 
     async def _execute_action(self, tools: Any, action: Any) -> Any:
         executor = getattr(tools, "execute_action", None)
