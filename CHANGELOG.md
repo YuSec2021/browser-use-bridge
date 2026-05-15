@@ -82,3 +82,5 @@
 - The exporter correctly isolates exports by task_id even when checkpoint_id collides. Repeat calls with same parameters produce identical output (deterministic).
 
 ## v0.19.0 — Sprint 20 [MINOR bump]
+
+## v0.11.0 — Sprint 11 [MINOR bump]
