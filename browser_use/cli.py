@@ -21,6 +21,7 @@ from browser_use.agent import Agent
 from browser_use.browser import BrowserSession
 from browser_use.checkpoint import CheckpointManager
 from browser_use.dom import DomService
+from browser_use.history import HistoryExporter
 from browser_use.memory import MemoryStore, MemoryType
 from browser_use.mcp import BrowserUseServer, claude_desktop_config
 from browser_use.observability import ObservabilityEvent, ObservabilityHub
@@ -341,6 +342,30 @@ def resume(checkpoint_id: str, task_id: str | None, dry_run: bool, json_output: 
         _echo_json(payload)
         return
     click.echo(f"{payload['status']}: {checkpoint.checkpoint_id} step={checkpoint.step_counter}")
+
+
+@main.command("replay")
+@click.argument("checkpoint_id")
+@click.option("--format", "replay_format", type=click.Choice(["json", "html", "gif", "all"]), default="html", show_default=True)
+@click.option("--task-id", default=None, help="Task id that owns the checkpoint.")
+@click.option("--output-dir", type=click.Path(file_okay=False, dir_okay=True), default="history-exports", show_default=True)
+@click.option("--json", "json_output", is_flag=True, help="Emit generated artifact paths as JSON.")
+def replay(checkpoint_id: str, replay_format: str, task_id: str | None, output_dir: str, json_output: bool) -> None:
+    """Export saved checkpoint history as replay artifacts."""
+
+    exporter = HistoryExporter(checkpoint_manager=_checkpoint_manager(), output_dir=output_dir)
+    paths = exporter.export(checkpoint_id, task_id=task_id, format=replay_format)
+    payload = {
+        "checkpoint_id": checkpoint_id,
+        "task_id": task_id,
+        "format": replay_format,
+        "paths": {name: str(path) for name, path in paths.items()},
+    }
+    if json_output:
+        _echo_json(payload)
+        return
+    for name, path in payload["paths"].items():
+        click.echo(f"{name}\t{path}")
 
 
 @main.group("memory")

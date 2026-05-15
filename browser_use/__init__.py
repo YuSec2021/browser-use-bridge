@@ -3,6 +3,7 @@ from browser_use.config import BrowserProfile, BrowserUseConfig, BrowserViewport
 from browser_use.browser import BrowserSession, SessionManager, Tab, TabManager
 from browser_use.checkpoint import Checkpoint, CheckpointManager, resume_from_checkpoint
 from browser_use.dom import AnnotationConfig, DomAnnotator
+from browser_use.history import HistoryExporter
 from browser_use.memory import MemoryEntry, MemoryStore, MemoryType
 from browser_use.tui import BrowserUseTUI, DashboardState
 from browser_use.tools import Tools
@@ -24,6 +25,7 @@ __all__ = [
     "ControllerState",
     "DashboardState",
     "DomAnnotator",
+    "HistoryExporter",
     "MemoryEntry",
     "MemoryStore",
     "MemoryType",
