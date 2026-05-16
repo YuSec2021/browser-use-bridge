@@ -8,8 +8,8 @@ AI browser automation bridge with first-class support for Chinese LLMs, custom m
 
 Built on top of [browser-use](https://github.com/browser-use/browser-use) — extending it with Chinese LLM adapters, vision understanding, memory, checkpointing, and more.
 
-[![PyPI](https://img.shields.io/pypi/v/browser-use-bridge)](https://pypi.org/project/browser-use-bridge/)
-[![Python](https://img.shields.io/pypi/pyversions/browser-use-bridge)](https://pypi.org/project/browser-use-bridge/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.0.0-blue)](https://pypi.org/project/browser-use-bridge/1.0.0/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/browser-use-bridge/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
