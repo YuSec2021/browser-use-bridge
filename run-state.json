@@ -1,0 +1,14 @@
+{
+  "mode": "complete",
+  "current_sprint": 11,
+  "retry_count": 0,
+  "last_successful_sprint": 11,
+  "last_failure_reason": "",
+  "needs_human": false,
+  "active_branch": "codex/sprint-11-custom-provider",
+  "base_branch": "main",
+  "last_run_at": "2026-05-16T00:05:00Z",
+  "current_version": "1.0.0",
+  "sprint_origin": "feature",
+  "quality_retry_count": 0
+}
