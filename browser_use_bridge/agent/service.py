@@ -6,14 +6,14 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from browser_use.agent.message_manager import MessageManager
-from browser_use.agent.controller import Controller, ControllerResult
-from browser_use.agent.planner import Plan, Planner, PlanningContext
-from browser_use.agent.retry import RetryController, RetryExhaustedError
-from browser_use.agent.views import ActionLoopDetector, AgentHistory, AgentHistoryList, AgentOutput
-from browser_use.browser import BrowserSession
-from browser_use.browser.views import BrowserStateSummary
-from browser_use.llm.base import BaseChatModel
+from browser_use_bridge.agent.message_manager import MessageManager
+from browser_use_bridge.agent.controller import Controller, ControllerResult
+from browser_use_bridge.agent.planner import Plan, Planner, PlanningContext
+from browser_use_bridge.agent.retry import RetryController, RetryExhaustedError
+from browser_use_bridge.agent.views import ActionLoopDetector, AgentHistory, AgentHistoryList, AgentOutput
+from browser_use_bridge.browser import BrowserSession
+from browser_use_bridge.browser.views import BrowserStateSummary
+from browser_use_bridge.llm.base import BaseChatModel
 
 
 def _strip_markdown_code_fence(content: str | bytes | bytearray) -> str | bytes:
