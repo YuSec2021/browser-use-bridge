@@ -84,3 +84,12 @@
 ## v0.19.0 — Sprint 20 [MINOR bump]
 
 ## v0.11.0 — Sprint 11 [MINOR bump]
+
+## v1.1.0 — Sprint 12 [MINOR bump]
+- Deterministic exponential backoff confirmed. No jitter variance observed with jitter=0.0.
+- classify_error() correctly maps BrowserSecurityError to NON_RECOVERABLE and TimeoutError to RECOVERABLE. No retry for non-recoverable errors.
+- Browser state (url) preserved across retries. RetryController used injectably. Final history entry shows successful completion.
+- Page fingerprint uses stable JSON of URL + normalized element keys (index, tag, tag_name, text, href, type). Changed element text produces different fingerprint, preventing false positive loop detection.
+- Nudge injected via `manager.build_messages(state, nudge=nudge)`. Loop detector state reset after nudge consumed (consume_nudge clears recent_actions). Agent successfully broke the loop.
+- RetryExhaustedError.summary is a structured dict with full attempt history including error_type, error message, category, and delay per attempt. Abort strategy selected from RecoveryStrategy enum.
+- Fix: ChatQwen markdown-fenced JSON parsing regression
