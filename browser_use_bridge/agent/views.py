@@ -9,6 +9,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from browser_use_bridge.browser.views import BrowserStateSummary
 
 
+class AgentOutputSchema(BaseModel):
+    thinking: str = ""
+    evaluation: str = ""
+    memory: str = ""
+    next_goal: str = ""
+    actions: list[Any] = Field(default_factory=list)
+
+
 class AgentOutput(BaseModel):
     model_config = ConfigDict(extra="allow")
 

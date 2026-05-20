@@ -24,11 +24,13 @@ class ChatMiniMax(OpenAICompatibleChatModel):
         api_key: str | None = None,
         temperature: float | None = None,
         endpoint: str = "international",
+        thinking: bool = False,
         reasoning: bool | None = None,
         **kwargs: Any,
     ) -> None:
         self.endpoint = endpoint
-        self.reasoning = reasoning
+        self.thinking = reasoning if reasoning is not None else thinking
+        self.reasoning = self.thinking
         super().__init__(
             model=model,
             api_key=api_key,
@@ -48,9 +50,7 @@ class ChatMiniMax(OpenAICompatibleChatModel):
             raise ValueError(f"Unsupported MiniMax endpoint {endpoint!r}. Expected one of: {supported}.") from exc
 
     def _extra_body(self) -> dict[str, Any]:
-        if self.reasoning is None:
-            return {}
-        return {"reasoning_split": self.reasoning}
+        return {"reasoning_split": self.thinking}
 
 
 __all__ = ["ChatMiniMax"]

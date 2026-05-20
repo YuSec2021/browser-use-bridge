@@ -21,10 +21,17 @@ class BrowserProfile(BaseModel):
     headless: bool = True
     viewport: BrowserViewport = Field(default_factory=BrowserViewport)
     user_data_dir: str | None = None
+    user_data_dir_base: str | None = None
     downloads_path: str | None = None
     proxy: str | dict[str, Any] | None = None
     allowed_domains: list[str] = Field(default_factory=list)
     cdp_port: int | None = None
+    chrome_executable_path: str | None = None
+    ignore_certificate_errors: bool = False
+    disable_web_security: bool = False
+    disable_site_isolation_trials: bool = False
+    no_sandbox: bool = False
+    extra_chrome_args: list[str] = Field(default_factory=list)
 
 
 class BrowserUseConfig(BaseModel):

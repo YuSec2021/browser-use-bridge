@@ -24,9 +24,11 @@ class ChatKimi(OpenAICompatibleChatModel):
         api_key: str | None = None,
         temperature: float | None = None,
         endpoint: str = "international",
+        thinking: bool = False,
         **kwargs: Any,
     ) -> None:
         self.endpoint = endpoint
+        self.thinking = thinking
         super().__init__(
             model=model,
             api_key=api_key,
@@ -44,6 +46,11 @@ class ChatKimi(OpenAICompatibleChatModel):
         except KeyError as exc:
             supported = ", ".join(sorted(cls._ENDPOINTS))
             raise ValueError(f"Unsupported Kimi endpoint {endpoint!r}. Expected one of: {supported}.") from exc
+
+    def _extra_body(self) -> dict[str, Any]:
+        # Moonshot exposes reasoning mainly through model selection; keep the public flag
+        # available for compatible gateways that accept a boolean thinking option.
+        return {"thinking": self.thinking}
 
 
 __all__ = ["ChatKimi"]

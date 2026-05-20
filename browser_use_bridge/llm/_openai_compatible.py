@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncIterator, Sequence
-from typing import Any
+from typing import Any, Generic
 
-from .base import BaseChatModel
+from browser_use_bridge.agent.views import AgentOutput, AgentOutputSchema
+
+from .base import BaseChatModel, StructuredModelT, _parse_structured_response
 
 
 class OpenAICompatibleChatModel(BaseChatModel):
@@ -86,3 +88,86 @@ class OpenAICompatibleChatModel(BaseChatModel):
             return
         hint = f" or set {self.api_key_env_var}" if self.api_key_env_var else ""
         raise RuntimeError(f"API key is required for {type(self).__name__}. Pass api_key=...{hint}.")
+
+    def with_structured_output(
+        self,
+        schema: type[StructuredModelT],
+        **kwargs: Any,
+    ) -> "_OpenAICompatibleStructuredOutputChatModel[StructuredModelT]":
+        return _OpenAICompatibleStructuredOutputChatModel(self, schema, **kwargs)
+
+
+class _OpenAICompatibleStructuredOutputChatModel(BaseChatModel, Generic[StructuredModelT]):
+    def __init__(
+        self,
+        base_model: OpenAICompatibleChatModel,
+        schema: type[StructuredModelT],
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            model=base_model.model,
+            api_key=base_model.api_key,
+            temperature=base_model.temperature,
+            **base_model.model_kwargs,
+        )
+        self.base_model = base_model
+        self.schema = schema
+        self.structured_output_kwargs = kwargs
+
+    async def ainvoke(
+        self,
+        messages: Sequence[dict[str, Any]] | Sequence[Any],
+        **kwargs: Any,
+    ) -> StructuredModelT:
+        request_kwargs = self._schema_request_kwargs(kwargs)
+        try:
+            raw_response = await self.base_model.ainvoke(messages, **request_kwargs)
+        except Exception as exc:
+            if _is_agent_output_schema(self.schema):
+                raise RuntimeError(f"OpenAI-compatible structured output request failed: {exc}") from exc
+            raise
+        return _parse_structured_response(raw_response, self.schema)
+
+    async def astream(
+        self,
+        messages: Sequence[dict[str, Any]] | Sequence[Any],
+        **kwargs: Any,
+    ) -> AsyncIterator[StructuredModelT]:
+        request_kwargs = self._schema_request_kwargs(kwargs)
+        chunks: list[str] = []
+        try:
+            async for chunk in self.base_model.astream(messages, **request_kwargs):
+                chunks.append(str(chunk))
+        except Exception as exc:
+            if _is_agent_output_schema(self.schema):
+                raise RuntimeError(f"OpenAI-compatible structured output request failed: {exc}") from exc
+            raise
+        yield _parse_structured_response("".join(chunks), self.schema)
+
+    def bind_tools(self, tools: Sequence[Any]) -> "_OpenAICompatibleStructuredOutputChatModel[StructuredModelT]":
+        self.base_model.bind_tools(tools)
+        self.tools = tools
+        return self
+
+    def _schema_request_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        request_kwargs = {
+            **self.structured_output_kwargs,
+            **kwargs,
+        }
+        if _is_agent_output_schema(self.schema):
+            request_kwargs.setdefault("response_format", _agent_output_response_format())
+        return request_kwargs
+
+
+def _is_agent_output_schema(schema: type[Any]) -> bool:
+    return schema in {AgentOutput, AgentOutputSchema}
+
+
+def _agent_output_response_format() -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "AgentOutput",
+            "schema": AgentOutputSchema.model_json_schema(),
+        },
+    }

@@ -24,7 +24,7 @@ class ChatQwen(OpenAICompatibleChatModel):
         api_key: str | None = None,
         temperature: float | None = None,
         region: str = "cn",
-        thinking: bool | None = None,
+        thinking: bool = False,
         thinking_budget: int | None = None,
         **kwargs: Any,
     ) -> None:
@@ -50,9 +50,7 @@ class ChatQwen(OpenAICompatibleChatModel):
             raise ValueError(f"Unsupported Qwen region {region!r}. Expected one of: {supported}.") from exc
 
     def _extra_body(self) -> dict[str, Any]:
-        extra_body: dict[str, Any] = {}
-        if self.thinking is not None:
-            extra_body["enable_thinking"] = self.thinking
+        extra_body: dict[str, Any] = {"enable_thinking": self.thinking}
         if self.thinking_budget is not None:
             extra_body["thinking_budget"] = self.thinking_budget
         return extra_body

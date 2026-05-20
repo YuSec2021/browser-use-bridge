@@ -4,9 +4,9 @@
 
 ---
 
-AI browser automation bridge with first-class support for Chinese LLMs, custom model providers, and any OpenAI-compatible endpoint.
+AI browser automation bridge with first-class support for Chinese LLMs, custom model providers, browser session pooling, and any OpenAI-compatible endpoint.
 
-Built on top of [browser-use](https://github.com/browser-use/browser-use) — extending it with Chinese LLM adapters, vision understanding, memory, checkpointing, and more.
+Built on top of [browser-use](https://github.com/browser-use/browser-use) — extending it with Chinese LLM adapters, a persistent browser runtime, vision understanding, memory, checkpointing, and more.
 
 [![PyPI](https://img.shields.io/badge/PyPI-1.0.0-blue)](https://pypi.org/project/browser-use-bridge/1.0.0/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/browser-use-bridge/)
@@ -25,6 +25,7 @@ Built on top of [browser-use](https://github.com/browser-use/browser-use) — ex
 | **Chinese LLM adapters** | Native support for Kimi (Moonshot), Qwen (DashScope), GLM (Zhipu), MiniMax, DeepSeek — no LangChain required |
 | **Custom model provider** | `ChatCustom`: point at any OpenAI-compatible endpoint with `base_url` + `api_key` |
 | **Ollama local models** | `ChatOllama` with health checking, model discovery, streaming, and vision model support |
+| **Browser pool and session layer** | `BrowserPool` launches persistent Chrome profiles through CDP; `BrowserSession`, `SessionManager`, and `EventBus` keep tabs and lifecycle state consistent |
 | **Vision understanding** | `VisionService`: screenshot → annotated image → Vision LLM analysis; automatic fallback when DOM is sparse |
 | **Planner / Controller separation** | Two-agent architecture: Planner decomposes tasks into sub-goals; Controller executes and verifies each step |
 | **Memory store** | BM25 keyword retrieval (zero deps) or ChromaDB vector backend; injected into Agent context automatically |
@@ -42,6 +43,37 @@ Built on top of [browser-use](https://github.com/browser-use/browser-use) — ex
 | CLI command | `browser-use` | `browser-use-bridge` |
 | LLM base class | LangChain `BaseChatModel` | Lightweight custom `BaseChatModel` (no LangChain dependency) |
 | Provider auto-detection | — | Detects Chinese gateways from `base_url` pattern |
+
+---
+
+## Architecture
+
+`browser-use-bridge` is organized as a layered browser-agent runtime. The current architecture separates model access, agent reasoning, browser sessions, and persistence so each part can be tested and replaced independently.
+
+```mermaid
+flowchart TD
+  Task["User task"] --> Agent["Agent orchestration"]
+  Agent --> Planner["Planner / Controller (optional)"]
+  Agent --> State["MessageManager + memory + retry"]
+  Planner --> Tools["Tools registry"]
+  Agent --> Tools
+  Tools --> Session["BrowserSession"]
+  Session --> Tabs["SessionManager + EventBus"]
+  Session --> Runtime["BrowserPool + ChromeLauncher + CDP"]
+  Session --> Perception["DOM serializer + VisionService"]
+  Agent --> LLM["LLM bridge: Chinese providers, custom endpoints, Ollama"]
+  Agent --> Persistence["CheckpointManager + HistoryExporter"]
+```
+
+| Layer | Responsibility |
+|---|---|
+| Agent orchestration | Runs the perceive → reason → act loop, or delegates planning/execution to the optional Planner / Controller split |
+| LLM bridge | Normalizes OpenAI-compatible providers, Chinese model APIs, structured output, streaming, and provider-specific options |
+| Browser runtime | Uses `BrowserPool` and `ChromeLauncher` to keep persistent Chrome sessions available through CDP |
+| Session state | `BrowserSession`, `SessionManager`, and `EventBus` track tabs, navigation, DOM updates, and page lifecycle events |
+| Perception | Combines DOM extraction with screenshot annotation and vision-model analysis when visual context is needed |
+| Persistence | Stores memory, checkpoints, and run history for resume, audit, and export workflows |
+| Interfaces | Python API, CLI, MCP server, and TUI share the same runtime and tool registry |
 
 ---
 
@@ -170,6 +202,26 @@ llm = ChatCustom(
 )
 ```
 
+### Browser Pool
+
+```python
+import asyncio
+
+from browser_use_bridge.browser import BrowserPool, BrowserProfile
+
+async def main():
+    pool = BrowserPool(pool_size=2, profile=BrowserProfile(headless=True))
+    await pool.start()
+    handle = await pool.acquire()
+    try:
+        print(pool.status())
+    finally:
+        await pool.release(handle)
+        await pool.shutdown()
+
+asyncio.run(main())
+```
+
 ---
 
 ## Supported Providers
@@ -218,7 +270,7 @@ Original [browser-use](https://github.com/browser-use/browser-use) is also MIT l
 
 ---
 
-基于 [browser-use](https://github.com/browser-use/browser-use) 构建的 AI 浏览器自动化框架，新增国产大模型支持、视觉理解、记忆存储、断点续传等能力。
+基于 [browser-use](https://github.com/browser-use/browser-use) 构建的 AI 浏览器自动化框架，新增国产大模型支持、持久化浏览器运行时、视觉理解、记忆存储、断点续传等能力。
 
 ---
 
@@ -233,6 +285,7 @@ Original [browser-use](https://github.com/browser-use/browser-use) is also MIT l
 | **国产大模型适配器** | 原生支持 Kimi（月之暗面）、通义千问（DashScope）、智谱 GLM、MiniMax、DeepSeek，无需 LangChain |
 | **自定义模型提供商** | `ChatCustom`：通过 `base_url` + `api_key` 接入任意 OpenAI 兼容接口 |
 | **Ollama 本地模型** | `ChatOllama`：含健康检查、模型发现、流式输出、视觉模型支持 |
+| **浏览器池和会话层** | `BrowserPool` 通过 CDP 启动持久化 Chrome 配置；`BrowserSession`、`SessionManager`、`EventBus` 统一管理标签页和生命周期状态 |
 | **视觉理解模块** | `VisionService`：截图 → 标注图像 → Vision LLM 分析；DOM 稀少时自动降级到视觉模式 |
 | **Planner / Controller 分离** | 双 Agent 架构：Planner 将任务分解为子目标，Controller 逐步执行并验证 |
 | **记忆存储** | BM25 关键词检索（零依赖）或 ChromaDB 向量后端；自动注入 Agent 上下文 |
@@ -250,6 +303,37 @@ Original [browser-use](https://github.com/browser-use/browser-use) is also MIT l
 | CLI 命令 | `browser-use` | `browser-use-bridge` |
 | LLM 基类 | LangChain `BaseChatModel` | 轻量自研 `BaseChatModel`（无 LangChain 依赖） |
 | 国产模型接入 | 不支持 | 原生支持，含 API Key 自动读取 |
+
+---
+
+## 架构说明
+
+`browser-use-bridge` 当前采用分层的浏览器 Agent 运行时架构，将模型接入、Agent 推理、浏览器会话和持久化能力拆开，便于独立测试、替换和扩展。
+
+```mermaid
+flowchart TD
+  Task["用户任务"] --> Agent["Agent 编排"]
+  Agent --> Planner["Planner / Controller（可选）"]
+  Agent --> State["MessageManager + 记忆 + 重试"]
+  Planner --> Tools["工具注册表"]
+  Agent --> Tools
+  Tools --> Session["BrowserSession"]
+  Session --> Tabs["SessionManager + EventBus"]
+  Session --> Runtime["BrowserPool + ChromeLauncher + CDP"]
+  Session --> Perception["DOM 序列化 + VisionService"]
+  Agent --> LLM["LLM Bridge：国产模型、自定义接口、Ollama"]
+  Agent --> Persistence["CheckpointManager + HistoryExporter"]
+```
+
+| 层级 | 职责 |
+|---|---|
+| Agent 编排 | 执行感知 → 推理 → 动作循环，也可切换为 Planner / Controller 分离模式 |
+| LLM Bridge | 统一 OpenAI 兼容接口、国产模型 API、结构化输出、流式输出和厂商特定参数 |
+| 浏览器运行时 | 通过 `BrowserPool` 和 `ChromeLauncher` 维护可复用的持久化 Chrome 会话 |
+| 会话状态 | `BrowserSession`、`SessionManager`、`EventBus` 负责标签页、导航、DOM 更新和页面生命周期事件 |
+| 感知层 | 结合 DOM 抽取、截图标注和视觉模型分析，在需要视觉上下文时自动增强 |
+| 持久化 | 负责记忆、断点和运行历史，用于恢复任务、审计和导出 |
+| 使用入口 | Python API、CLI、MCP Server、TUI 共用同一套运行时和工具注册表 |
 
 ---
 
@@ -377,6 +461,26 @@ llm = ChatCustom(
     base_url="http://localhost:8080/v1",
     api_key="optional",
 )
+```
+
+### 浏览器池
+
+```python
+import asyncio
+
+from browser_use_bridge.browser import BrowserPool, BrowserProfile
+
+async def main():
+    pool = BrowserPool(pool_size=2, profile=BrowserProfile(headless=True))
+    await pool.start()
+    handle = await pool.acquire()
+    try:
+        print(pool.status())
+    finally:
+        await pool.release(handle)
+        await pool.shutdown()
+
+asyncio.run(main())
 ```
 
 ---

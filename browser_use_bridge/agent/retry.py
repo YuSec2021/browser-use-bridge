@@ -5,7 +5,7 @@ import random
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -79,7 +79,7 @@ def classify_error(error: BaseException) -> ErrorClassification:
     )
 
 
-SleepCallable = Callable[[float], Awaitable[None] | None]
+SleepCallable = Optional[Callable[[float], Optional[Awaitable[None]]]]
 
 
 class RetryController:

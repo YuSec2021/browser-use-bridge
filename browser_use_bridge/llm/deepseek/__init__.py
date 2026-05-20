@@ -17,8 +17,10 @@ class ChatDeepSeek(OpenAICompatibleChatModel):
         model: str,
         api_key: str | None = None,
         temperature: float | None = None,
+        thinking: bool = False,
         **kwargs: Any,
     ) -> None:
+        self.thinking = thinking
         super().__init__(
             model=model,
             api_key=api_key,
@@ -26,6 +28,11 @@ class ChatDeepSeek(OpenAICompatibleChatModel):
             base_url=self._BASE_URL,
             **kwargs,
         )
+
+    def _extra_body(self) -> dict[str, Any]:
+        # DeepSeek reasoning is generally selected by model id; pass through the
+        # normalized flag for compatible OpenAI-style gateways that expose it.
+        return {"thinking": self.thinking}
 
 
 __all__ = ["ChatDeepSeek"]

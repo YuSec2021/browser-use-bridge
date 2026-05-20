@@ -24,7 +24,14 @@ from browser_use_bridge.dom import DomService
 from browser_use_bridge.mcp import BrowserUseServer, claude_desktop_config
 from browser_use_bridge.observability import ObservabilityEvent, ObservabilityHub
 from browser_use_bridge.tools import Tools
-from browser_use_bridge.tui import BrowserUseTUI, DashboardState, THEME_SUMMARY, render_dashboard_text
+
+try:
+    from browser_use_bridge.tui import BrowserUseTUI, DashboardState, THEME_SUMMARY, render_dashboard_text
+except ImportError:
+    BrowserUseTUI = None
+    DashboardState = None
+    THEME_SUMMARY = ""
+    render_dashboard_text = None
 
 
 def _load_state(path: str | None) -> dict[str, Any] | None:

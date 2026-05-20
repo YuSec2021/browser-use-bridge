@@ -16,6 +16,36 @@ from browser_use_bridge.browser.views import BrowserStateSummary
 from browser_use_bridge.llm.base import BaseChatModel
 
 
+def _strip_markdown_code_fence(content: str | bytes | bytearray) -> str | bytes:
+    if isinstance(content, str):
+        stripped = content.strip()
+        lines = stripped.splitlines()
+        if _is_markdown_fenced_block(lines):
+            return "\n".join(lines[1:-1]).strip()
+        return stripped
+
+    stripped_bytes = bytes(content).strip()
+    lines_bytes = stripped_bytes.splitlines()
+    if _is_markdown_fenced_block(lines_bytes):
+        return b"\n".join(lines_bytes[1:-1]).strip()
+    return stripped_bytes
+
+
+def _is_markdown_fenced_block(lines: list[str] | list[bytes]) -> bool:
+    if len(lines) < 2:
+        return False
+    opener = lines[0].strip()
+    closer = lines[-1].strip()
+    fence = b"```" if isinstance(opener, bytes) else "```"
+    backtick = b"`" if isinstance(opener, bytes) else "`"
+    if closer != fence:
+        return False
+    if not opener.startswith(fence):
+        return False
+    info = opener[3:].strip()
+    return backtick not in info
+
+
 class Agent(BaseModel):
     """Browser automation agent that perceives page state, asks an LLM for actions, and executes them."""
 
@@ -164,9 +194,9 @@ class Agent(BaseModel):
         if isinstance(raw_output, AgentOutput):
             return raw_output
         if isinstance(raw_output, str):
-            return AgentOutput.model_validate_json(raw_output)
+            return self._parse_agent_output_string(raw_output)
         if isinstance(raw_output, bytes | bytearray):
-            return AgentOutput.model_validate_json(bytes(raw_output))
+            return AgentOutput.model_validate_json(_strip_markdown_code_fence(raw_output))
         if isinstance(raw_output, dict) and "content" in raw_output:
             return self._parse_model_content(raw_output["content"])
         content = getattr(raw_output, "content", None)
@@ -174,13 +204,139 @@ class Agent(BaseModel):
             return self._parse_model_content(content)
         return AgentOutput.model_validate(raw_output)
 
+    def _parse_agent_output_string(self, raw_output: str) -> AgentOutput:
+        """Parse agent output string, handling JSON, markdown-fenced JSON, and YAML-like formats."""
+        import re
+        stripped = _strip_markdown_code_fence(raw_output)
+        # Normalize memory and evaluation fields: must be strings, not objects/arrays/null.
+        stripped = re.sub(r'"memory"\s*:\s*\[[^\]]*\]', '"memory": ""', stripped)
+        stripped = re.sub(r'"memory"\s*:\s*\{[^}]*\}', '"memory": ""', stripped)
+        stripped = re.sub(r'"memory"\s*:\s*null', '"memory": ""', stripped)
+        stripped = re.sub(r'"evaluation"\s*:\s*\{[^}]*\}', '"evaluation": ""', stripped)
+        stripped = re.sub(r'"evaluation"\s*:\s*\[[^\]]*\]', '"evaluation": ""', stripped)
+        stripped = re.sub(r'"evaluation"\s*:\s*null', '"evaluation": ""', stripped)
+        stripped = re.sub(r'"thinking"\s*:\s*\{[^}]*\}', '"thinking": ""', stripped)
+        stripped = re.sub(r'"thinking"\s*:\s*\[[^\]]*\]', '"thinking": ""', stripped)
+        stripped = re.sub(r'"thinking"\s*:\s*null', '"thinking": ""', stripped)
+        stripped = re.sub(r'"next_goal"\s*:\s*\{[^}]*\}', '"next_goal": ""', stripped)
+        stripped = re.sub(r'"next_goal"\s*:\s*\[[^\]]*\]', '"next_goal": ""', stripped)
+        stripped = re.sub(r'"next_goal"\s*:\s*null', '"next_goal": ""', stripped)
+        try:
+            return AgentOutput.model_validate_json(stripped)
+        except Exception:
+            pass
+        # Try YAML-like format (model outputs YAML when thinking is enabled)
+        if stripped.startswith("thinking:") or "\nthinking:" in stripped or stripped.startswith('{"'):
+            parsed = self._parse_yaml_like_output(stripped)
+            if parsed is not None:
+                return parsed
+        # Fallback: model returned plain text (e.g., refusal). Use the text as evaluation.
+        return AgentOutput(
+            evaluation=stripped[:2000],
+            thinking="",
+            memory="",
+            next_goal="",
+            actions=[],
+        )
+
+    def _parse_yaml_like_output(self, text: str) -> AgentOutput | None:
+        """Parse YAML-like or malformed-JSON output format from models that use reasoning."""
+        import re
+        import json
+        import ast
+        result: dict[str, Any] = {}
+
+        # Try Python dict literal format (single quotes): {'action': 'navigate', 'url': '...'}
+        if text.strip().startswith("{"):
+            try:
+                parsed = ast.literal_eval(text.strip())
+                if isinstance(parsed, dict):
+                    result.update(parsed)
+                    for field in ("memory", "evaluation", "thinking", "next_goal"):
+                        if field in result and not isinstance(result[field], str):
+                            result[field] = ""
+            except Exception:
+                pass
+
+        # Try to parse whole text as JSON first
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                result.update(parsed)
+                for field in ("memory", "evaluation", "thinking", "next_goal"):
+                    if field in result and not isinstance(result[field], str):
+                        result[field] = ""
+        except Exception:
+            pass
+
+        # Extract actions from JSON array format: [{"action_type": "navigate", "url": "..."}]
+        if "actions" not in result or not result.get("actions"):
+            json_actions_match = re.search(r'"actions":\s*\[(\s*\{[^}]+\}[^\]]*)\]', text, re.DOTALL)
+            if json_actions_match:
+                actions_str = "[" + json_actions_match.group(1) + "]"
+                try:
+                    result["actions"] = json.loads(actions_str)
+                except Exception:
+                    pass
+
+        # Extract actions from single dict format: {"action": "navigate", "url": "..."}
+        if "actions" not in result or not result.get("actions"):
+            json_single_action = re.search(r'"actions":\s*\{([^}]+)\}', text, re.DOTALL)
+            if json_single_action:
+                try:
+                    result["actions"] = [json.loads("{" + json_single_action.group(1) + "}")]
+                except Exception:
+                    pass
+
+        # Extract actions from YAML list format: "- action_type: value"
+        if not result.get("actions"):
+            actions = []
+            yaml_action_pattern = re.compile(r'^\s*-\s+(\w+):\s*([^\n]+)', re.MULTILINE)
+            for match in yaml_action_pattern.finditer(text):
+                action_type = match.group(1)
+                action_value = match.group(2).strip().rstrip(',').rstrip('}')
+                actions.append({action_type: action_value})
+            if actions:
+                result["actions"] = actions
+
+        # Extract text fields using regex
+        for field in ("thinking", "evaluation", "memory", "next_goal"):
+            if field not in result or not result.get(field):
+                pattern = rf'"{field}"\s*:\s*"(.*?)"(?:\s*,|\s*\n|\s*\}}|\s*$)'
+                match = re.search(pattern, text, re.DOTALL)
+                if not match:
+                    pattern = rf"{field}:\s*[\"']?(.+?)[\"']?\s*(?=\n|\w+:|\[)"
+                    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+                if match:
+                    value = match.group(1).strip()
+                    if field == "memory":
+                        if value in ("[]", "None", "", "null") or value.startswith("["):
+                            result[field] = ""
+                        else:
+                            result[field] = value
+                    else:
+                        result[field] = value
+
+        # Ensure all required fields exist
+        for field in ("thinking", "evaluation", "memory", "next_goal"):
+            if field not in result:
+                result[field] = ""
+        if "actions" not in result:
+            result["actions"] = []
+
+        try:
+            return AgentOutput.model_validate(result)
+        except Exception:
+            pass
+        return None
+
     def _parse_model_content(self, content: Any) -> AgentOutput:
         if isinstance(content, AgentOutput):
             return content
         if isinstance(content, str):
-            return AgentOutput.model_validate_json(content)
+            return AgentOutput.model_validate_json(_strip_markdown_code_fence(content))
         if isinstance(content, bytes | bytearray):
-            return AgentOutput.model_validate_json(bytes(content))
+            return AgentOutput.model_validate_json(_strip_markdown_code_fence(content))
         if isinstance(content, dict):
             return AgentOutput.model_validate(content)
         return AgentOutput.model_validate(json.loads(str(content)))
