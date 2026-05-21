@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "browser-use-bridge"
-version = "1.0.0"
+version = "1.1.0"
 description = "AI browser automation bridge for Chinese LLMs, custom model providers, and OpenAI-compatible endpoints"
 readme = "README.md"
 requires-python = ">=3.11"

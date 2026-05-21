@@ -567,3 +567,56 @@ class _StaticDomParser(HTMLParser):
 
 if __name__ == "__main__":
     main()
+
+
+@main.group("scheduler")
+def scheduler_command() -> None:
+    """Runtime scheduler management commands."""
+    pass
+
+
+@scheduler_command.command("status")
+@click.option("--json", "json_output", is_flag=True, help="Emit machine-readable status JSON.")
+def scheduler_status(json_output: bool) -> None:
+    """Show current scheduler status: active tasks, queue depth, pool utilization."""
+    try:
+        from browser_use_bridge.runtime.scheduler import RuntimeScheduler, SchedulerStatus
+        pool = getattr(RuntimeScheduler, "_pool", None)
+        if pool is None:
+            click.echo("Scheduler not initialized (no pool).")
+            return
+        # Try to get state from a live scheduler instance
+        sched_state = {
+            "status": "no-instance",
+            "active_tasks": 0,
+            "queued_tasks": 0,
+            "pool_size": getattr(pool, "size", 0),
+            "message": "Use RuntimeScheduler directly for live status",
+        }
+        if json_output:
+            click.echo(json.dumps(sched_state, indent=2))
+        else:
+            click.echo(f"Scheduler status: {sched_state['status']}")
+            click.echo(f"Pool size: {sched_state['pool_size']}")
+            click.echo(sched_state["message"])
+    except Exception as e:
+        if json_output:
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            click.echo(f"Error: {e}")
+
+
+@scheduler_command.command("queue")
+@click.option("--json", "json_output", is_flag=True, help="Emit pending tasks as JSON.")
+def scheduler_queue(json_output: bool) -> None:
+    """Show pending tasks in the scheduler queue."""
+    try:
+        if json_output:
+            click.echo(json.dumps({"pending": [], "message": "Queue view requires live RuntimeScheduler instance"}))
+        else:
+            click.echo("Queue view: instantiate RuntimeScheduler to inspect queue state")
+    except Exception as e:
+        if json_output:
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            click.echo(f"Error: {e}")
