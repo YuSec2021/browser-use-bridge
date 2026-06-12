@@ -46,13 +46,13 @@ def main() -> None:
 
 
 PROVIDER_DEFAULTS = {
-    "openai": "gpt-4o",
-    "anthropic": "claude-sonnet-4-20250514",
-    "google": "gemini-2.0-flash",
+    "openai": "gpt-5.5",
+    "anthropic": "opus-4.8",
+    "google": "gemini-3.5-flash",
     "kimi": "kimi-2.6",
-    "qwen": "qwen3.6-plus",
+    "qwen": "qwen3.7-plus",
     "glm": "glm-5.1",
-    "minimax": "MiniMax-M2.7",
+    "minimax": "MiniMax-M3",
     "deepseek": "deepseek-v4-pro",
     "ollama": "llama3",
 }
@@ -60,7 +60,7 @@ PROVIDER_DEFAULTS = {
 
 def _build_llm(provider: str, model: str | None, api_key: str | None) -> Any:
     """Create an LLM adapter from provider name and optional overrides."""
-    model = model or PROVIDER_DEFAULTS.get(provider, "gpt-4o")
+    model = model or PROVIDER_DEFAULTS.get(provider, "gpt-5.5")
 
     if api_key is None:
         env_map = {

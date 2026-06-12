@@ -8,7 +8,7 @@ AI browser automation bridge with first-class support for Chinese LLMs, custom m
 
 Built on top of [browser-use](https://github.com/browser-use/browser-use) — extending it with Chinese LLM adapters, a scheduled persistent browser runtime, vision understanding, memory, checkpointing, and more.
 
-[![PyPI](https://img.shields.io/badge/PyPI-1.1.2-blue)](https://pypi.org/project/browser-use-bridge/1.1.2/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.1.3-blue)](https://pypi.org/project/browser-use-bridge/1.1.3/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/browser-use-bridge/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -35,7 +35,7 @@ Built on top of [browser-use](https://github.com/browser-use/browser-use) — ex
 | **Checkpoint / Resume** | `CheckpointManager`: save task state at any step, resume after interruption |
 | **History export** | `HistoryExporter`: export completed runs as JSON, self-contained HTML timeline, or animated GIF |
 | **Structured retry** | `RetryController`: exponential backoff, error classification, loop detection with page fingerprinting |
-| **Updated default models** | Kimi `kimi-2.6`, Qwen `qwen3.6-plus`, GLM `glm-5.1`, MiniMax `MiniMax-M2.7`, DeepSeek `deepseek-v4-pro` |
+| **Updated default models** | Kimi `kimi-2.6`, Qwen `qwen3.7-plus`, GLM `glm-5.1`, MiniMax `MiniMax-M3`, DeepSeek `deepseek-v4-pro` |
 | **Independent packaging** | Published as `browser-use-bridge` on PyPI with optional dependency groups per provider |
 
 ### Changed
@@ -151,7 +151,7 @@ async def main():
         await session.start()
         agent = Agent(
             task="Fill in the registration form at example.com",
-            llm=ChatQwen(model="qwen3.6-plus"),
+            llm=ChatQwen(model="qwen3.7-plus"),
             browser_session=session,
             memory_store=MemoryStore(),
         )
@@ -311,13 +311,13 @@ asyncio.run(main())
 
 | Provider | Class | Default Model | Install |
 |---|---|---|---|
-| OpenAI | `ChatOpenAI` | `gpt-4o` | built-in |
-| Anthropic | `ChatAnthropic` | `claude-sonnet-4-20250514` | `[cn]` |
-| Google Gemini | `ChatGoogle` | `gemini-2.0-flash` | built-in |
+| OpenAI | `ChatOpenAI` | `gpt-5.5` | built-in |
+| Anthropic | `ChatAnthropic` | `opus-4.8` | `[cn]` |
+| Google Gemini | `ChatGoogle` | `gemini-3.5-flash` | built-in |
 | Kimi (Moonshot) | `ChatKimi` | `kimi-2.6` | built-in |
-| Qwen (DashScope) | `ChatQwen` | `qwen3.6-plus` | `[cn]` |
+| Qwen (DashScope) | `ChatQwen` | `qwen3.7-plus` | `[cn]` |
 | GLM (Zhipu) | `ChatGLM` | `glm-5.1` | `[cn]` |
-| MiniMax | `ChatMiniMax` | `MiniMax-M2.7` | built-in |
+| MiniMax | `ChatMiniMax` | `MiniMax-M3` | built-in |
 | DeepSeek | `ChatDeepSeek` | `deepseek-v4-pro` | built-in |
 | Ollama (local) | `ChatOllama` | `llama3` | `[ollama]` |
 | Custom endpoint | `ChatCustom` | configurable | built-in |
@@ -343,6 +343,11 @@ Do not commit `.env`, PyPI tokens, provider API keys, private keys, or local bro
 
 ## Release Notes
 
+### 1.1.3
+
+- Updated built-in CLI provider defaults: OpenAI `gpt-5.5`, Anthropic `opus-4.8`, Google `gemini-3.5-flash`, Qwen `qwen3.7-plus`, and MiniMax `MiniMax-M3`.
+- Updated README provider tables and examples to match the new defaults.
+
 ### 1.1.2
 
 - Added the `browser_use_bridge.humanize` package to the public distribution.
@@ -364,7 +369,7 @@ PyPI does not replace files that were already uploaded for the same package vers
 
 ```bash
 # 1. Update pyproject.toml, for example:
-# version = "1.1.2"
+# version = "1.1.3"
 
 # 2. Build from a clean artifact directory
 rm -rf dist build browser_use_bridge.egg-info
@@ -380,7 +385,7 @@ When Twine asks for credentials, use `__token__` as the username and paste your 
 ```bash
 python -m venv /tmp/browser-use-bridge-pypi-test
 /tmp/browser-use-bridge-pypi-test/bin/python -m pip install -U pip
-/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.2
+/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.3
 /tmp/browser-use-bridge-pypi-test/bin/python -c "import browser_use_bridge; print(browser_use_bridge.__all__)"
 ```
 
@@ -425,7 +430,7 @@ Original [browser-use](https://github.com/browser-use/browser-use) is also MIT l
 | **断点续传** | `CheckpointManager`：任意步骤保存任务状态，中断后可恢复 |
 | **历史回放导出** | `HistoryExporter`：导出为 JSON、自包含 HTML 时间线、或 GIF 动画 |
 | **结构化重试** | `RetryController`：指数退避、错误分级、基于页面指纹的循环检测 |
-| **最新默认模型** | Kimi `kimi-2.6`、千问 `qwen3.6-plus`、GLM `glm-5.1`、MiniMax `MiniMax-M2.7`、DeepSeek `deepseek-v4-pro` |
+| **最新默认模型** | Kimi `kimi-2.6`、千问 `qwen3.7-plus`、GLM `glm-5.1`、MiniMax `MiniMax-M3`、DeepSeek `deepseek-v4-pro` |
 | **独立 PyPI 发布** | 以 `browser-use-bridge` 发布，各模型 SDK 按需安装 |
 
 ### 变更对比
@@ -542,7 +547,7 @@ async def main():
         await session.start()
         agent = Agent(
             task="填写 example.com 的注册表单",
-            llm=ChatQwen(model="qwen3.6-plus"),
+            llm=ChatQwen(model="qwen3.7-plus"),
             browser_session=session,
             memory_store=MemoryStore(),
         )
@@ -702,13 +707,13 @@ asyncio.run(main())
 
 | 提供商 | 类名 | 默认模型 | 安装方式 |
 |---|---|---|---|
-| OpenAI | `ChatOpenAI` | `gpt-4o` | 内置 |
-| Anthropic | `ChatAnthropic` | `claude-sonnet-4-20250514` | `[cn]` |
-| Google Gemini | `ChatGoogle` | `gemini-2.0-flash` | 内置 |
+| OpenAI | `ChatOpenAI` | `gpt-5.5` | 内置 |
+| Anthropic | `ChatAnthropic` | `opus-4.8` | `[cn]` |
+| Google Gemini | `ChatGoogle` | `gemini-3.5-flash` | 内置 |
 | Kimi（月之暗面） | `ChatKimi` | `kimi-2.6` | 内置 |
-| 通义千问（DashScope） | `ChatQwen` | `qwen3.6-plus` | `[cn]` |
+| 通义千问（DashScope） | `ChatQwen` | `qwen3.7-plus` | `[cn]` |
 | 智谱 GLM | `ChatGLM` | `glm-5.1` | `[cn]` |
-| MiniMax | `ChatMiniMax` | `MiniMax-M2.7` | 内置 |
+| MiniMax | `ChatMiniMax` | `MiniMax-M3` | 内置 |
 | DeepSeek | `ChatDeepSeek` | `deepseek-v4-pro` | 内置 |
 | Ollama（本地） | `ChatOllama` | `llama3` | `[ollama]` |
 | 自定义接口 | `ChatCustom` | 可配置 | 内置 |
@@ -734,6 +739,11 @@ OPENAI_API_KEY=your-openai-key
 
 ## 版本更新说明
 
+### 1.1.3
+
+- 更新 CLI 内置模型默认值：OpenAI `gpt-5.5`、Anthropic `opus-4.8`、Google `gemini-3.5-flash`、通义千问 `qwen3.7-plus`、MiniMax `MiniMax-M3`。
+- 同步更新 README 的模型提供商表格和示例。
+
 ### 1.1.2
 
 - 将 `browser_use_bridge.humanize` 包加入公开发布内容。
@@ -755,7 +765,7 @@ PyPI 不会覆盖同一版本号已经上传过的文件。发布新代码时，
 
 ```bash
 # 1. 修改 pyproject.toml，例如：
-# version = "1.1.2"
+# version = "1.1.3"
 
 # 2. 从干净的构建目录重新打包
 rm -rf dist build browser_use_bridge.egg-info
@@ -771,7 +781,7 @@ Twine 要求输入账号时，用户名填写 `__token__`，密码粘贴 PyPI AP
 ```bash
 python -m venv /tmp/browser-use-bridge-pypi-test
 /tmp/browser-use-bridge-pypi-test/bin/python -m pip install -U pip
-/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.2
+/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.3
 /tmp/browser-use-bridge-pypi-test/bin/python -c "import browser_use_bridge; print(browser_use_bridge.__all__)"
 ```
 
