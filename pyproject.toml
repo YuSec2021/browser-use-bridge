@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "browser-use-bridge"
-version = "1.1.1"
+version = "1.1.2"
 description = "AI browser automation bridge for Chinese LLMs, custom model providers, and OpenAI-compatible endpoints"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -55,6 +55,7 @@ glm     = ["zhipuai>=2.1.0"]
 minimax = ["openai>=1.30.0"]    # MiniMax 兼容 OpenAI 接口
 deepseek = ["openai>=1.30.0"]   # DeepSeek 兼容 OpenAI 接口
 ollama  = ["ollama>=0.2.0"]     # 本地 Ollama
+humanize = ["python_ghost_cursor"]  # Human-like cursor movement for Playwright
 
 # 开发 / 测试
 dev = [
@@ -67,7 +68,7 @@ dev = [
 
 # 一键全装（国产模型 + 开发工具）
 all = [
-  "browser-use-bridge[cn,ollama,dev]",
+  "browser-use-bridge[cn,ollama,humanize,dev]",
 ]
 
 # ── CLI 入口点 ─────────────────────────────────────────────────────────────

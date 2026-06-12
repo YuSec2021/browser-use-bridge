@@ -8,7 +8,7 @@ AI browser automation bridge with first-class support for Chinese LLMs, custom m
 
 Built on top of [browser-use](https://github.com/browser-use/browser-use) — extending it with Chinese LLM adapters, a scheduled persistent browser runtime, vision understanding, memory, checkpointing, and more.
 
-[![PyPI](https://img.shields.io/badge/PyPI-1.1.1-blue)](https://pypi.org/project/browser-use-bridge/1.1.1/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.1.2-blue)](https://pypi.org/project/browser-use-bridge/1.1.2/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/browser-use-bridge/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -28,6 +28,7 @@ Built on top of [browser-use](https://github.com/browser-use/browser-use) — ex
 | **Browser pool and session layer** | `BrowserPool` launches persistent Chrome profiles through CDP; `BrowserSession`, `SessionManager`, and `EventBus` keep tabs and lifecycle state consistent |
 | **Runtime scheduler** | `RuntimeScheduler` accepts prioritized async tasks, exposes queue/state snapshots, and emits lifecycle events for submitted, started, completed, failed, and cancelled tasks |
 | **Task-bound runtime sessions** | `runtime.Session` allocates one browser lease per task, creates an isolated context/page, persists `SessionState`, and supports close, clear, preserve, and recovery policies |
+| **Humanized browser actions** | Optional `humanize` mode adds ghost-cursor movement, slower typing, and stepped scrolling for `click`, `input_text`, and `scroll` tool actions |
 | **Vision understanding** | `VisionService`: screenshot → annotated image → Vision LLM analysis; automatic fallback when DOM is sparse |
 | **Planner / Controller separation** | Two-agent architecture: Planner decomposes tasks into sub-goals; Controller executes and verifies each step |
 | **Memory store** | BM25 keyword retrieval (zero deps) or ChromaDB vector backend; injected into Agent context automatically |
@@ -99,6 +100,7 @@ pip install "browser-use-bridge[kimi]"       # Moonshot Kimi
 pip install "browser-use-bridge[deepseek]"   # DeepSeek
 pip install "browser-use-bridge[minimax]"    # MiniMax
 pip install "browser-use-bridge[ollama]"     # Ollama local models
+pip install "browser-use-bridge[humanize]"   # Human-like cursor, typing, and scrolling
 pip install "browser-use-bridge[all]"        # Everything
 ```
 
@@ -230,6 +232,47 @@ async def main():
 asyncio.run(main())
 ```
 
+### Humanized Actions
+
+Install the optional dependency first:
+
+```bash
+pip install "browser-use-bridge[humanize]"
+```
+
+Enable it with environment variables:
+
+```env
+HUMANIZE=true
+HUMANIZE_MAX_TIME=1.5
+HUMANIZE_MIN_TIME=0.3
+HUMANIZE_TYPING=true
+HUMANIZE_TYPE_CPS=8
+HUMANIZE_SCROLLING=true
+HUMANIZE_SCROLL_STEPS=8
+```
+
+Or configure it in Python:
+
+```python
+from browser_use_bridge.browser import BrowserSession
+from browser_use_bridge.humanize import HumanizeConfig
+
+session = BrowserSession(
+    humanize_cfg=HumanizeConfig(
+        enabled=True,
+        min_time=0.3,
+        max_time=1.5,
+        typing=True,
+        type_cps_mean=8,
+        scrolling=True,
+        scroll_steps=8,
+    )
+)
+```
+
+When enabled, built-in `click`, `input_text`, and `scroll` tool actions use human-like pointer movement, typing cadence, and wheel steps.
+
 ### Runtime Scheduler
 
 ```python
@@ -300,6 +343,12 @@ Do not commit `.env`, PyPI tokens, provider API keys, private keys, or local bro
 
 ## Release Notes
 
+### 1.1.2
+
+- Added the `browser_use_bridge.humanize` package to the public distribution.
+- Added the `[humanize]` optional dependency group powered by `python_ghost_cursor`.
+- Documented humanized cursor movement, typing, and scrolling usage in README.
+
 ### 1.1.1
 
 - Removed tracked test files from the public repository so the GitHub code surface contains only runtime/package source.
@@ -315,7 +364,7 @@ PyPI does not replace files that were already uploaded for the same package vers
 
 ```bash
 # 1. Update pyproject.toml, for example:
-# version = "1.1.1"
+# version = "1.1.2"
 
 # 2. Build from a clean artifact directory
 rm -rf dist build browser_use_bridge.egg-info
@@ -331,7 +380,7 @@ When Twine asks for credentials, use `__token__` as the username and paste your 
 ```bash
 python -m venv /tmp/browser-use-bridge-pypi-test
 /tmp/browser-use-bridge-pypi-test/bin/python -m pip install -U pip
-/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.1
+/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.2
 /tmp/browser-use-bridge-pypi-test/bin/python -c "import browser_use_bridge; print(browser_use_bridge.__all__)"
 ```
 
@@ -369,6 +418,7 @@ Original [browser-use](https://github.com/browser-use/browser-use) is also MIT l
 | **浏览器池和会话层** | `BrowserPool` 通过 CDP 启动持久化 Chrome 配置；`BrowserSession`、`SessionManager`、`EventBus` 统一管理标签页和生命周期状态 |
 | **运行时调度器** | `RuntimeScheduler` 接收带优先级的异步任务，提供队列/状态快照，并为提交、启动、完成、失败、取消等阶段发出生命周期事件 |
 | **任务级运行时 Session** | `runtime.Session` 为每个任务分配一个浏览器租约，创建隔离的 context/page，持久化 `SessionState`，支持关闭、清理、保留和恢复策略 |
+| **拟人化浏览器动作** | 可选 `humanize` 模式为 `click`、`input_text`、`scroll` 工具动作加入拟人化鼠标轨迹、慢速输入和分段滚动 |
 | **视觉理解模块** | `VisionService`：截图 → 标注图像 → Vision LLM 分析；DOM 稀少时自动降级到视觉模式 |
 | **Planner / Controller 分离** | 双 Agent 架构：Planner 将任务分解为子目标，Controller 逐步执行并验证 |
 | **记忆存储** | BM25 关键词检索（零依赖）或 ChromaDB 向量后端；自动注入 Agent 上下文 |
@@ -440,6 +490,7 @@ pip install "browser-use-bridge[kimi]"       # Kimi（月之暗面）
 pip install "browser-use-bridge[deepseek]"   # DeepSeek
 pip install "browser-use-bridge[minimax]"    # MiniMax
 pip install "browser-use-bridge[ollama]"     # Ollama 本地模型
+pip install "browser-use-bridge[humanize]"   # 拟人化鼠标、输入和滚动
 pip install "browser-use-bridge[all]"        # 全部安装
 ```
 
@@ -572,6 +623,47 @@ async def main():
 asyncio.run(main())
 ```
 
+### 拟人化动作
+
+先安装可选依赖：
+
+```bash
+pip install "browser-use-bridge[humanize]"
+```
+
+通过环境变量开启：
+
+```env
+HUMANIZE=true
+HUMANIZE_MAX_TIME=1.5
+HUMANIZE_MIN_TIME=0.3
+HUMANIZE_TYPING=true
+HUMANIZE_TYPE_CPS=8
+HUMANIZE_SCROLLING=true
+HUMANIZE_SCROLL_STEPS=8
+```
+
+也可以在 Python 中显式配置：
+
+```python
+from browser_use_bridge.browser import BrowserSession
+from browser_use_bridge.humanize import HumanizeConfig
+
+session = BrowserSession(
+    humanize_cfg=HumanizeConfig(
+        enabled=True,
+        min_time=0.3,
+        max_time=1.5,
+        typing=True,
+        type_cps_mean=8,
+        scrolling=True,
+        scroll_steps=8,
+    )
+)
+```
+
+开启后，内置 `click`、`input_text`、`scroll` 工具动作会使用拟人化鼠标移动、输入节奏和滚轮分段。
+
 ### 运行时调度器
 
 ```python
@@ -642,6 +734,12 @@ OPENAI_API_KEY=your-openai-key
 
 ## 版本更新说明
 
+### 1.1.2
+
+- 将 `browser_use_bridge.humanize` 包加入公开发布内容。
+- 新增基于 `python_ghost_cursor` 的 `[humanize]` 可选依赖组。
+- 在 README 中补充拟人化鼠标移动、输入和滚动的使用方式。
+
 ### 1.1.1
 
 - 从公开仓库移除已跟踪的测试文件，确保 GitHub 代码区只保留运行时/包源码。
@@ -657,7 +755,7 @@ PyPI 不会覆盖同一版本号已经上传过的文件。发布新代码时，
 
 ```bash
 # 1. 修改 pyproject.toml，例如：
-# version = "1.1.1"
+# version = "1.1.2"
 
 # 2. 从干净的构建目录重新打包
 rm -rf dist build browser_use_bridge.egg-info
@@ -673,7 +771,7 @@ Twine 要求输入账号时，用户名填写 `__token__`，密码粘贴 PyPI AP
 ```bash
 python -m venv /tmp/browser-use-bridge-pypi-test
 /tmp/browser-use-bridge-pypi-test/bin/python -m pip install -U pip
-/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.1
+/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.2
 /tmp/browser-use-bridge-pypi-test/bin/python -c "import browser_use_bridge; print(browser_use_bridge.__all__)"
 ```
 
