@@ -8,7 +8,7 @@ AI browser automation bridge with first-class support for Chinese LLMs, custom m
 
 Built on top of [browser-use](https://github.com/browser-use/browser-use) — extending it with Chinese LLM adapters, a scheduled persistent browser runtime, vision understanding, memory, checkpointing, and more.
 
-[![PyPI](https://img.shields.io/badge/PyPI-1.1.0-blue)](https://pypi.org/project/browser-use-bridge/1.1.0/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.1.1-blue)](https://pypi.org/project/browser-use-bridge/1.1.1/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/browser-use-bridge/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -294,6 +294,19 @@ DEEPSEEK_API_KEY=your-deepseek-key
 OPENAI_API_KEY=your-openai-key
 ```
 
+Do not commit `.env`, PyPI tokens, provider API keys, private keys, or local browser profiles. The repository `.gitignore` excludes common secret files and local test/example directories.
+
+---
+
+## Release Notes
+
+### 1.1.1
+
+- Removed tracked test files from the public repository so the GitHub code surface contains only runtime/package source.
+- Added `.gitignore` rules for `tests/`, `test/`, `examples/`, `example/`, sample directories, local secret files, private keys, and local build/cache artifacts.
+- Added `MANIFEST.in` pruning rules so source distributions exclude tests, examples, sample folders, local secret files, and cache/build artifacts.
+- Completed a repository secret hygiene pass: no `.env`, PyPI token, private key, or credential file is present in tracked release files.
+
 ---
 
 ## Updating the PyPI Package
@@ -302,7 +315,7 @@ PyPI does not replace files that were already uploaded for the same package vers
 
 ```bash
 # 1. Update pyproject.toml, for example:
-# version = "1.1.0"
+# version = "1.1.1"
 
 # 2. Build from a clean artifact directory
 rm -rf dist build browser_use_bridge.egg-info
@@ -318,7 +331,7 @@ When Twine asks for credentials, use `__token__` as the username and paste your 
 ```bash
 python -m venv /tmp/browser-use-bridge-pypi-test
 /tmp/browser-use-bridge-pypi-test/bin/python -m pip install -U pip
-/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.0
+/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.1
 /tmp/browser-use-bridge-pypi-test/bin/python -c "import browser_use_bridge; print(browser_use_bridge.__all__)"
 ```
 
@@ -623,6 +636,19 @@ DEEPSEEK_API_KEY=your-deepseek-key
 OPENAI_API_KEY=your-openai-key
 ```
 
+不要提交 `.env`、PyPI Token、模型厂商 API Key、私钥或本地浏览器配置。仓库 `.gitignore` 已排除常见敏感文件以及本地测试/示例目录。
+
+---
+
+## 版本更新说明
+
+### 1.1.1
+
+- 从公开仓库移除已跟踪的测试文件，确保 GitHub 代码区只保留运行时/包源码。
+- 在 `.gitignore` 中加入 `tests/`、`test/`、`examples/`、`example/`、sample 目录、本地敏感文件、私钥、构建和缓存产物。
+- 新增 `MANIFEST.in`，确保源码包发布时排除测试、示例、sample、本地敏感文件、缓存和构建产物。
+- 完成仓库敏感信息审查：已跟踪发布文件中未发现 `.env`、PyPI Token、私钥或凭据文件。
+
 ---
 
 ## 更新 PyPI 包
@@ -631,7 +657,7 @@ PyPI 不会覆盖同一版本号已经上传过的文件。发布新代码时，
 
 ```bash
 # 1. 修改 pyproject.toml，例如：
-# version = "1.1.0"
+# version = "1.1.1"
 
 # 2. 从干净的构建目录重新打包
 rm -rf dist build browser_use_bridge.egg-info
@@ -647,7 +673,7 @@ Twine 要求输入账号时，用户名填写 `__token__`，密码粘贴 PyPI AP
 ```bash
 python -m venv /tmp/browser-use-bridge-pypi-test
 /tmp/browser-use-bridge-pypi-test/bin/python -m pip install -U pip
-/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.0
+/tmp/browser-use-bridge-pypi-test/bin/python -m pip install browser-use-bridge==1.1.1
 /tmp/browser-use-bridge-pypi-test/bin/python -c "import browser_use_bridge; print(browser_use_bridge.__all__)"
 ```
 

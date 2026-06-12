@@ -1,5 +1,12 @@
 .DS_Store
 .env
+.env.*
+!.env.example
+.pypirc
+*.pem
+*.key
+id_rsa*
+id_ed25519*
 .coverage
 .pytest_cache/
 .mypy_cache/
@@ -10,4 +17,11 @@ __pycache__/
 build/
 dist/
 *.egg-info/
-
+tests/
+test/
+testing/
+examples/
+example/
+samples/
+sample/
+docs/_build/
